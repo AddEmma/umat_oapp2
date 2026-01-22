@@ -1,9 +1,14 @@
 // services/auth_service.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'database_service.dart';
+import '../models/member.dart';
+import 'dart:io';
 
 class AuthService extends ChangeNotifier {
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final DatabaseService _databaseService = DatabaseService();
+
   User? get user => _auth.currentUser;
   bool get isAuthenticated => user != null;
 
@@ -27,8 +32,10 @@ class AuthService extends ChangeNotifier {
     // Listen to auth state changes
     _auth.authStateChanges().listen((User? user) {
       _isInitialized = true;
-      // Reset login session flag when user signs out
-      if (user == null) {
+      if (user != null) {
+        _fetchUserRole(user.uid);
+      } else {
+        _userRole = null;
         _hasLoggedInThisSession = false;
       }
       notifyListeners();
@@ -37,6 +44,9 @@ class AuthService extends ChangeNotifier {
     // Also listen to user changes for more granular updates
     _auth.userChanges().listen((User? user) {
       _isInitialized = true;
+      if (user != null) {
+        _fetchUserRole(user.uid);
+      }
       notifyListeners();
     });
   }
@@ -56,15 +66,26 @@ class AuthService extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Wait for auth state to be initialized
-  Future<void> waitForInitialization() async {
-    if (_isInitialized) return;
+  // Wait for auth state and role to be initialized
+  Future<void> _waitForRole() async {
+    int attempts = 0;
+    while (_userRole == null && attempts < 30) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      attempts++;
+    }
+  }
 
-    // Wait up to 5 seconds for auth state to initialize
+  Future<void> waitForInitialization() async {
+    // Wait for the base auth state
     int attempts = 0;
     while (!_isInitialized && attempts < 50) {
-      await Future.delayed(Duration(milliseconds: 100));
+      await Future.delayed(const Duration(milliseconds: 100));
       attempts++;
+    }
+
+    // If a user is present, wait for the role to be fetched
+    if (user != null) {
+      await _waitForRole();
     }
   }
 
@@ -80,6 +101,7 @@ class AuthService extends ChangeNotifier {
 
       if (result.user != null) {
         _hasLoggedInThisSession = true;
+        await _fetchUserRole(result.user!.uid);
         return true;
       }
       return false;
@@ -118,11 +140,36 @@ class AuthService extends ChangeNotifier {
     }
   }
 
+  // User Role
+  String? _userRole;
+  String? get userRole => _userRole;
+
+  bool get canEdit => _userRole == 'admin' || _userRole == 'editor';
+  bool get isAdmin => _userRole == 'admin';
+  bool get isEditor => _userRole == 'editor';
+
+  Future<void> _fetchUserRole(String uid) async {
+    try {
+      _userRole = await _databaseService.getUserRole(uid);
+      notifyListeners();
+    } catch (e) {
+      print('Error fetching user role: $e');
+    }
+  }
+
+  // Modified register to default to 'viewer'
   Future<bool> registerOrganizer(
     String email,
     String password,
-    String name,
-  ) async {
+    String name, {
+    String? adminCode,
+    String? phoneNumber,
+    String? year,
+    String? department,
+    bool isBaptized = false,
+    String? ministryRole,
+    File? profileImage,
+  }) async {
     try {
       _setLoading(true);
       _setError(null);
@@ -133,20 +180,76 @@ class AuthService extends ChangeNotifier {
       );
 
       if (result.user != null) {
-        await result.user!.updateDisplayName(name);
-        // Reload user to get updated info
-        await result.user!.reload();
-        _hasLoggedInThisSession = true;
-        return true;
+        try {
+          // Initialize profile data
+          await result.user!.updateDisplayName(name);
+
+          String role = (adminCode == 'UMAT2024') ? 'admin' : 'viewer';
+
+          // Upload profile image if provided - Make it non-fatal for account creation
+          String? photoUrl;
+          if (profileImage != null) {
+            try {
+              photoUrl = await _databaseService.uploadProfileImage(
+                result.user!.uid,
+                profileImage,
+              );
+              await result.user!.updatePhotoURL(photoUrl);
+            } catch (e) {
+              print("Non-fatal error uploading profile image: $e");
+              // We proceed without the photoUrl to ensure member creation doesn't fail
+            }
+          }
+
+          // Create user profile in Firestore
+          await _databaseService.createUserProfile(
+            result.user!.uid,
+            email,
+            name,
+            role,
+            phoneNumber: phoneNumber,
+            photoUrl: photoUrl,
+          );
+
+          // Automatically sync to members collection
+          await _databaseService.addMember(
+            Member(
+              id: '',
+              name: name,
+              phone: phoneNumber ?? '',
+              year: year ?? '',
+              department: department ?? '',
+              isBaptized: isBaptized,
+              ministryRole: ministryRole ?? '',
+              photoUrl: photoUrl,
+              dateAdded: DateTime.now(),
+            ),
+          );
+
+          // Crucial: Reload user multiple times to ensure Firebase Auth cache is updated
+          await result.user!.reload();
+          await Future.delayed(const Duration(milliseconds: 500));
+          await result.user!.reload();
+
+          _userRole = role;
+          _hasLoggedInThisSession = true;
+          notifyListeners();
+          return true;
+        } catch (e) {
+          print("Error during registration sync: $e");
+          _setError(
+            'Account created, but database sync failed: ${e.toString()}',
+          );
+          rethrow;
+        }
       }
       return false;
     } on FirebaseAuthException catch (e) {
       _setError(_getAuthErrorMessage(e.code));
-      return false;
+      rethrow;
     } catch (e) {
-      _setError('Registration failed. Please try again.');
-      print('Registration error: $e');
-      return false;
+      _setError(e.toString());
+      rethrow;
     } finally {
       _setLoading(false);
     }

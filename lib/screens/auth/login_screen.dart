@@ -13,10 +13,6 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen>
     with TickerProviderStateMixin {
-  final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
-  bool _obscurePassword = true;
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
@@ -25,17 +21,17 @@ class _LoginScreenState extends State<LoginScreen>
   void initState() {
     super.initState();
     _animationController = AnimationController(
-      duration: const Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 1000),
       vsync: this,
     );
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
+      CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
     );
     _slideAnimation =
-        Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero).animate(
+        Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(
           CurvedAnimation(
             parent: _animationController,
-            curve: Curves.easeOutBack,
+            curve: Curves.easeOutCubic,
           ),
         );
     _animationController.forward();
@@ -43,124 +39,107 @@ class _LoginScreenState extends State<LoginScreen>
 
   @override
   void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
     _animationController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    // Subtle, professional gradient
+    final gradientColors = [
+      const Color(0xFFF5F7FA), // Light greyish blue
+      const Color(0xFFC3CFE2), // Softer blue-grey
+    ];
+
     return Scaffold(
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Theme.of(context).primaryColor.withOpacity(0.1),
-              Colors.white,
-              Theme.of(context).primaryColor.withOpacity(0.05),
-            ],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: gradientColors,
           ),
         ),
         child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 24.0,
-              vertical: 20.0,
-            ),
-            child: Consumer<AuthService>(
-              builder: (context, authService, child) {
-                return AnimatedBuilder(
-                  animation: _animationController,
-                  builder: (context, child) {
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 24.0,
+                vertical: 24.0,
+              ),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 450),
+                child: Consumer<AuthService>(
+                  builder: (context, authService, child) {
                     return FadeTransition(
                       opacity: _fadeAnimation,
                       child: SlideTransition(
                         position: _slideAnimation,
-                        child: Form(
-                          key: _formKey,
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const SizedBox(height: 40),
-
-                              // Logo and Title Section
-                              _buildHeaderSection(context),
-
-                              const SizedBox(height: 50),
-
-                              // Error Message Display
-                              if (authService.lastError != null)
-                                _buildErrorMessage(authService),
-
-                              // Form Fields
-                              _buildEmailField(),
-                              const SizedBox(height: 24),
-                              _buildPasswordField(authService),
-
-                              // Forgot Password Link
-                              _buildForgotPasswordLink(authService, context),
-
-                              const SizedBox(height: 32),
-
-                              // Sign In Button
-                              _buildSignInButton(authService, context),
-
-                              const SizedBox(height: 40),
-
-                              // Divider
-                              _buildDivider(),
-
-                              const SizedBox(height: 24),
-
-                              // Register Link
-                              _buildRegisterLink(authService, context),
-
-                              const SizedBox(height: 20),
-                            ],
-                          ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            const _LoginHeader(),
+                            const SizedBox(height: 32),
+                            Card(
+                              elevation: 8,
+                              shadowColor: Colors.black.withOpacity(0.1),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(24),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.all(32.0),
+                                child: _LoginForm(authService: authService),
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                            const _LoginFooter(),
+                          ],
                         ),
                       ),
                     );
                   },
-                );
-              },
+                ),
+              ),
             ),
           ),
         ),
       ),
     );
   }
+}
 
-  Widget _buildHeaderSection(BuildContext context) {
+class _LoginHeader extends StatelessWidget {
+  const _LoginHeader();
+
+  @override
+  Widget build(BuildContext context) {
     return Column(
       children: [
         Container(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(4),
           decoration: BoxDecoration(
-            color: Theme.of(context).primaryColor.withOpacity(0.1),
             shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: 4),
             boxShadow: [
               BoxShadow(
-                color: Theme.of(context).primaryColor.withOpacity(0.2),
-                blurRadius: 20,
-                offset: const Offset(0, 10),
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 16,
+                offset: const Offset(0, 8),
               ),
             ],
           ),
-          child: Icon(
-            Icons.church,
-            size: 60,
-            color: Theme.of(context).primaryColor,
+          child: CircleAvatar(
+            radius: 40,
+            backgroundImage: const AssetImage('assets/images/image.jpg.jpg'),
+            backgroundColor: Colors.transparent,
           ),
         ),
         const SizedBox(height: 24),
         Text(
           'Welcome Back',
           style: TextStyle(
-            fontSize: 32,
+            fontSize: 28,
             fontWeight: FontWeight.bold,
             color: Colors.grey[800],
             letterSpacing: -0.5,
@@ -168,362 +147,51 @@ class _LoginScreenState extends State<LoginScreen>
         ),
         const SizedBox(height: 8),
         Text(
-          'Church Ministry Organizers Portal',
+          'Church of Christ - SRID Campus Ministry',
           style: TextStyle(
             fontSize: 16,
             color: Colors.grey[600],
             fontWeight: FontWeight.w400,
           ),
         ),
-        const SizedBox(height: 4),
-        Text(
-          'Sign in to continue managing your ministry',
-          style: TextStyle(fontSize: 14, color: Colors.grey[500]),
-        ),
       ],
     );
   }
+}
 
-  Widget _buildErrorMessage(AuthService authService) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      margin: const EdgeInsets.only(bottom: 24),
-      decoration: BoxDecoration(
-        color: Colors.red[50],
-        border: Border.all(color: Colors.red[200]!),
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.red[100]!,
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(2),
-            decoration: BoxDecoration(
-              color: Colors.red[100],
-              shape: BoxShape.circle,
-            ),
-            child: Icon(Icons.error_outline, color: Colors.red[700], size: 20),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              authService.lastError!,
-              style: TextStyle(
-                color: Colors.red[800],
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.close, size: 18),
-            onPressed: () => authService.clearError(),
-            color: Colors.red[600],
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-          ),
-        ],
-      ),
-    );
+class _LoginForm extends StatefulWidget {
+  final AuthService authService;
+
+  const _LoginForm({required this.authService});
+
+  @override
+  State<_LoginForm> createState() => _LoginFormState();
+}
+
+class _LoginFormState extends State<_LoginForm> {
+  final _formKey = GlobalKey<FormState>();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  bool _obscurePassword = true;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
   }
 
-  Widget _buildEmailField() {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: TextFormField(
-        controller: _emailController,
-        keyboardType: TextInputType.emailAddress,
-        textInputAction: TextInputAction.next,
-        decoration: InputDecoration(
-          labelText: 'Email Address',
-          labelStyle: TextStyle(
-            color: Colors.grey[600],
-            fontWeight: FontWeight.w500,
-          ),
-          prefixIcon: Container(
-            margin: const EdgeInsets.all(12),
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Theme.of(context).primaryColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(
-              Icons.email_outlined,
-              color: Theme.of(context).primaryColor,
-              size: 20,
-            ),
-          ),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide(color: Colors.grey[300]!),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide(color: Colors.grey[300]!),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide(
-              color: Theme.of(context).primaryColor,
-              width: 2,
-            ),
-          ),
-          errorBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: const BorderSide(color: Colors.red, width: 2),
-          ),
-          filled: true,
-          fillColor: Colors.white,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 20,
-            vertical: 16,
-          ),
-        ),
-        validator: Validators.email,
-      ),
-    );
-  }
-
-  Widget _buildPasswordField(AuthService authService) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: TextFormField(
-        controller: _passwordController,
-        obscureText: _obscurePassword,
-        textInputAction: TextInputAction.done,
-        onFieldSubmitted: (_) => _signIn(authService),
-        decoration: InputDecoration(
-          labelText: 'Password',
-          labelStyle: TextStyle(
-            color: Colors.grey[600],
-            fontWeight: FontWeight.w500,
-          ),
-          prefixIcon: Container(
-            margin: const EdgeInsets.all(12),
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Theme.of(context).primaryColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(
-              Icons.lock_outline,
-              color: Theme.of(context).primaryColor,
-              size: 20,
-            ),
-          ),
-          suffixIcon: IconButton(
-            icon: Icon(
-              _obscurePassword
-                  ? Icons.visibility_outlined
-                  : Icons.visibility_off_outlined,
-              color: Colors.grey[600],
-            ),
-            onPressed: () {
-              setState(() {
-                _obscurePassword = !_obscurePassword;
-              });
-            },
-          ),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide(color: Colors.grey[300]!),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide(color: Colors.grey[300]!),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide(
-              color: Theme.of(context).primaryColor,
-              width: 2,
-            ),
-          ),
-          errorBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: const BorderSide(color: Colors.red, width: 2),
-          ),
-          filled: true,
-          fillColor: Colors.white,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 20,
-            vertical: 16,
-          ),
-        ),
-        validator: Validators.password,
-      ),
-    );
-  }
-
-  Widget _buildForgotPasswordLink(
-    AuthService authService,
-    BuildContext context,
-  ) {
-    return Align(
-      alignment: Alignment.centerRight,
-      child: Padding(
-        padding: const EdgeInsets.only(top: 8),
-        child: TextButton(
-          onPressed: authService.isLoading ? null : _forgotPassword,
-          style: TextButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          ),
-          child: Text(
-            'Forgot Password?',
-            style: TextStyle(
-              color: Theme.of(context).primaryColor,
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSignInButton(AuthService authService, BuildContext context) {
-    return Container(
-      width: double.infinity,
-      height: 56,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Theme.of(context).primaryColor.withOpacity(0.3),
-            blurRadius: 12,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: ElevatedButton(
-        onPressed: authService.isLoading ? null : () => _signIn(authService),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Theme.of(context).primaryColor,
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          elevation: 0,
-          disabledBackgroundColor: Colors.grey[300],
-        ),
-        child: authService.isLoading
-            ? const SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(
-                  color: Colors.white,
-                  strokeWidth: 2.5,
-                ),
-              )
-            : const Text(
-                'Sign In',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.5,
-                ),
-              ),
-      ),
-    );
-  }
-
-  Widget _buildDivider() {
-    return Row(
-      children: [
-        Expanded(child: Divider(color: Colors.grey[300], thickness: 1)),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Text(
-            'OR',
-            style: TextStyle(
-              color: Colors.grey[500],
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-        Expanded(child: Divider(color: Colors.grey[300], thickness: 1)),
-      ],
-    );
-  }
-
-  Widget _buildRegisterLink(AuthService authService, BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            "Don't have an account? ",
-            style: TextStyle(color: Colors.grey[600], fontSize: 14),
-          ),
-          TextButton(
-            onPressed: authService.isLoading ? null : _navigateToRegister,
-            style: TextButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-            child: Text(
-              'Sign Up',
-              style: TextStyle(
-                color: Theme.of(context).primaryColor,
-                fontWeight: FontWeight.w700,
-                fontSize: 14,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _signIn(AuthService authService) async {
+  Future<void> _signIn() async {
     if (_formKey.currentState?.validate() ?? false) {
-      // Clear any previous errors
-      authService.clearError();
-
-      bool success = await authService.signIn(
+      widget.authService.clearError();
+      bool success = await widget.authService.signIn(
         _emailController.text.trim(),
         _passwordController.text.trim(),
       );
 
       if (success && mounted) {
-        // Navigation is handled by the app's authentication state management
-        // The parent widget will automatically navigate based on auth state changes
         _showSuccessMessage();
       }
-      // Error handling is managed by the AuthService and displayed in the UI
     }
   }
 
@@ -564,8 +232,7 @@ class _LoginScreenState extends State<LoginScreen>
       return;
     }
 
-    final authService = Provider.of<AuthService>(context, listen: false);
-    bool success = await authService.resetPassword(
+    bool success = await widget.authService.resetPassword(
       _emailController.text.trim(),
     );
 
@@ -589,26 +256,217 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
-  void _navigateToRegister() {
-    // Use safe navigation with error handling
-    try {
-      Navigator.of(context).pushNamed('/register');
-    } catch (e) {
-      // Fallback: Show a message if navigation fails
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Row(
-            children: [
-              Icon(Icons.info, color: Colors.white),
-              SizedBox(width: 8),
-              Text('Registration feature will be available soon.'),
-            ],
+  @override
+  Widget build(BuildContext context) {
+    return Form(
+      key: _formKey,
+      child: Column(
+        children: [
+          if (widget.authService.lastError != null) ...[
+            _buildErrorMessage(),
+            const SizedBox(height: 24),
+          ],
+          _buildTextField(
+            controller: _emailController,
+            label: 'Email Address',
+            icon: Icons.email_outlined,
+            keyboardType: TextInputType.emailAddress,
+            validator: Validators.email,
           ),
-          backgroundColor: Colors.blue[600],
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          const SizedBox(height: 20),
+          _buildTextField(
+            controller: _passwordController,
+            label: 'Password',
+            icon: Icons.lock_outline,
+            isPassword: true,
+            isObscure: _obscurePassword,
+            onToggleVisibility: () {
+              setState(() => _obscurePassword = !_obscurePassword);
+            },
+            onSubmitted: (_) => _signIn(),
+            validator: Validators.password,
+          ),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: widget.authService.isLoading ? null : _forgotPassword,
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: Text(
+                'Forgot Password?',
+                style: TextStyle(
+                  color: Theme.of(context).primaryColor,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 32),
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton(
+              onPressed: widget.authService.isLoading ? null : _signIn,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(context).primaryColor,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: widget.authService.isLoading
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2.5,
+                      ),
+                    )
+                  : const Text(
+                      'Sign In',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorMessage() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.red[50],
+        border: Border.all(color: Colors.red[100]!),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.error_outline, color: Colors.red[700], size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              widget.authService.lastError!,
+              style: TextStyle(
+                color: Colors.red[800],
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close, size: 16),
+            onPressed: () => widget.authService.clearError(),
+            color: Colors.red[400],
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    TextInputType? keyboardType,
+    bool isPassword = false,
+    bool isObscure = false,
+    VoidCallback? onToggleVisibility,
+    ValueChanged<String>? onSubmitted,
+    String? Function(String?)? validator,
+  }) {
+    final primaryColor = Theme.of(context).primaryColor;
+    return TextFormField(
+      controller: controller,
+      obscureText: isObscure,
+      keyboardType: keyboardType,
+      textInputAction: isPassword ? TextInputAction.done : TextInputAction.next,
+      onFieldSubmitted: onSubmitted,
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: TextStyle(color: Colors.grey[600]),
+        prefixIcon: Icon(icon, color: Colors.grey[400], size: 22),
+        suffixIcon: isPassword
+            ? IconButton(
+                icon: Icon(
+                  isObscure
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined,
+                  color: Colors.grey[400],
+                ),
+                onPressed: onToggleVisibility,
+              )
+            : null,
+        filled: true,
+        fillColor: Colors.grey[50],
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
         ),
-      );
-    }
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey[200]!),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(
+            color: primaryColor.withOpacity(0.5),
+            width: 1.5,
+          ),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.red, width: 1),
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
+      ),
+      validator: validator,
+    );
+  }
+}
+
+class _LoginFooter extends StatelessWidget {
+  const _LoginFooter();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(
+          "Don't have an account? ",
+          style: TextStyle(color: Colors.grey[600], fontSize: 14),
+        ),
+        GestureDetector(
+          onTap: () {
+            Navigator.of(context).pushNamed('/register');
+          },
+          child: Text(
+            'Sign Up',
+            style: TextStyle(
+              color: Theme.of(context).primaryColor,
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }

@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "98035957466",
+    "project_id": "umat-srid-fef04",
+    "storage_bucket": "umat-srid-fef04.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:98035957466:android:380775153b9e985cfd6fe3",
+        "android_client_info": {
+          "package_name": "com.example.umat_srid_oapp"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "98035957466-bg98fgot9a353u8ahshscbgdp0s0trk1.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDoRT9TMo9DVrfvYhBjXCZD3K9qAwFwx3g"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "98035957466-bg98fgot9a353u8ahshscbgdp0s0trk1.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

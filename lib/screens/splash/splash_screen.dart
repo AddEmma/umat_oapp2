@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
+import 'dart:ui' as ui;
 
 import '../../services/auth_service.dart';
 import '../auth/login_screen.dart';
@@ -20,12 +21,14 @@ class _SplashScreenState extends State<SplashScreen>
   late AnimationController _logoController;
   late AnimationController _textController;
   late AnimationController _progressController;
+  late AnimationController _backgroundController;
 
   late Animation<double> _logoScaleAnimation;
   late Animation<double> _logoFadeAnimation;
   late Animation<double> _textFadeAnimation;
   late Animation<Offset> _textSlideAnimation;
   late Animation<double> _progressAnimation;
+  late Animation<double> _backgroundAnimation;
 
   bool _hasNavigated = false; // Prevent multiple navigations
 
@@ -76,6 +79,16 @@ class _SplashScreenState extends State<SplashScreen>
     _progressAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _progressController, curve: Curves.easeInOut),
     );
+
+    // Background animation
+    _backgroundController = AnimationController(
+      duration: const Duration(seconds: 10),
+      vsync: this,
+    )..repeat(reverse: true);
+
+    _backgroundAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _backgroundController, curve: Curves.linear),
+    );
   }
 
   void _startAnimationSequence() async {
@@ -92,8 +105,8 @@ class _SplashScreenState extends State<SplashScreen>
     if (!mounted) return;
     _progressController.forward();
 
-    // Wait for progress to complete then navigate
-    await Future.delayed(const Duration(milliseconds: 2500));
+    // Wait for progress to complete and keep splash visible longer (increased duration)
+    await Future.delayed(const Duration(milliseconds: 5000));
     if (!mounted) return;
 
     await _checkAuthAndNavigate();
@@ -155,24 +168,43 @@ class _SplashScreenState extends State<SplashScreen>
     _logoController.dispose();
     _textController.dispose();
     _progressController.dispose();
+    _backgroundController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final primaryColor = Theme.of(context).primaryColor;
+    final secondaryColor = Theme.of(context).colorScheme.secondary;
+
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Theme.of(context).primaryColor,
-              Theme.of(context).primaryColor.withOpacity(0.8),
-              Theme.of(context).colorScheme.secondary,
-            ],
-          ),
-        ),
+      body: AnimatedBuilder(
+        animation: _backgroundAnimation,
+        builder: (context, child) {
+          return Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.lerp(
+                  Alignment.topLeft,
+                  Alignment.topRight,
+                  _backgroundAnimation.value,
+                )!,
+                end: Alignment.lerp(
+                  Alignment.bottomRight,
+                  Alignment.bottomLeft,
+                  _backgroundAnimation.value,
+                )!,
+                colors: [
+                  primaryColor,
+                  primaryColor.withValues(alpha: 0.9),
+                  secondaryColor.withValues(alpha: 0.9),
+                  secondaryColor,
+                ],
+              ),
+            ),
+            child: child,
+          );
+        },
         child: SafeArea(
           child: Column(
             children: [
@@ -190,23 +222,33 @@ class _SplashScreenState extends State<SplashScreen>
                           child: ScaleTransition(
                             scale: _logoScaleAnimation,
                             child: Container(
-                              width: 120,
-                              height: 120,
+                              width: 140,
+                              height: 140,
+                              padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
                                 color: Colors.white,
-                                borderRadius: BorderRadius.circular(30),
+                                borderRadius: BorderRadius.circular(36),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.black.withOpacity(0.3),
-                                    blurRadius: 20,
-                                    offset: const Offset(0, 10),
+                                    color: Colors.black.withValues(alpha: 0.15),
+                                    blurRadius: 30,
+                                    spreadRadius: 5,
+                                    offset: const Offset(0, 15),
+                                  ),
+                                  BoxShadow(
+                                    color: Colors.white.withValues(alpha: 0.8),
+                                    blurRadius: 0,
+                                    spreadRadius: -2,
+                                    offset: const Offset(0, 0),
                                   ),
                                 ],
                               ),
-                              child: Icon(
-                                Icons.church,
-                                size: 60,
-                                color: Theme.of(context).primaryColor,
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(24),
+                                child: Image.asset(
+                                  'assets/images/image.jpg.jpg',
+                                  fit: BoxFit.cover,
+                                ),
                               ),
                             ),
                           ),
@@ -214,7 +256,7 @@ class _SplashScreenState extends State<SplashScreen>
                       },
                     ),
 
-                    const SizedBox(height: 40),
+                    const SizedBox(height: 48),
 
                     // Text section
                     AnimatedBuilder(
@@ -224,67 +266,116 @@ class _SplashScreenState extends State<SplashScreen>
                           opacity: _textFadeAnimation,
                           child: SlideTransition(
                             position: _textSlideAnimation,
-                            child: Column(
-                              children: [
-                                const Text(
-                                  'UMaT-SRID Church Ministry',
-                                  style: TextStyle(
-                                    fontSize: 32,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                    letterSpacing: 1.2,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'Connecting Hearts, Building Faith',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    color: Colors.white.withOpacity(0.9),
-                                    fontWeight: FontWeight.w400,
-                                    letterSpacing: 0.5,
-                                  ),
-                                ),
-                                const SizedBox(height: 30),
-                                // Bible verse
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 32,
-                                    vertical: 16,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.15),
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: Colors.white.withOpacity(0.3),
-                                      width: 1,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                              ),
+                              child: Column(
+                                children: [
+                                  Text(
+                                    'UMaT-SRID Campus Church Ministry',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: 32,
+                                      fontWeight: FontWeight.w900,
+                                      color: Colors.white,
+                                      letterSpacing: -0.5,
+                                      height: 1.1,
+                                      shadows: [
+                                        Shadow(
+                                          color: Colors.black.withValues(
+                                            alpha: 0.2,
+                                          ),
+                                          blurRadius: 10,
+                                          offset: const Offset(0, 4),
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                  child: Column(
-                                    children: [
-                                      Text(
-                                        '"For where two or three are gathered together in my name, I am there in the midst of them."',
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontStyle: FontStyle.italic,
-                                          color: Colors.white.withOpacity(0.95),
-                                          height: 1.4,
-                                        ),
-                                        textAlign: TextAlign.center,
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'Connecting Hearts, Building Faith',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      color: Colors.white.withValues(
+                                        alpha: 0.85,
                                       ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        '- Matthew 18:20 -',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                          color: Colors.white.withOpacity(0.8),
-                                        ),
-                                      ),
-                                    ],
+                                      fontWeight: FontWeight.w500,
+                                      letterSpacing: 0.5,
+                                    ),
                                   ),
-                                ),
-                              ],
+                                  const SizedBox(height: 40),
+                                  // Bible verse with Glassmorphism
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(24),
+                                    child: BackdropFilter(
+                                      filter: ui.ImageFilter.blur(
+                                        sigmaX: 10,
+                                        sigmaY: 10,
+                                      ),
+                                      child: Container(
+                                        padding: const EdgeInsets.all(24),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withValues(
+                                            alpha: 0.1,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            24,
+                                          ),
+                                          border: Border.all(
+                                            color: Colors.white.withOpacity(
+                                              0.2,
+                                            ),
+                                            width: 1.5,
+                                          ),
+                                        ),
+                                        child: Column(
+                                          children: [
+                                            Text(
+                                              '"For where two or three are gathered together in my name, I am there in the midst of them."',
+                                              style: TextStyle(
+                                                fontSize: 16,
+                                                fontStyle: FontStyle.italic,
+                                                color: Colors.white.withOpacity(
+                                                  0.95,
+                                                ),
+                                                height: 1.5,
+                                                fontWeight: FontWeight.w400,
+                                              ),
+                                              textAlign: TextAlign.center,
+                                            ),
+                                            const SizedBox(height: 16),
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 16,
+                                                    vertical: 6,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: Colors.white.withOpacity(
+                                                  0.1,
+                                                ),
+                                                borderRadius:
+                                                    BorderRadius.circular(20),
+                                              ),
+                                              child: Text(
+                                                'Matthew 18:20',
+                                                style: TextStyle(
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: Colors.white
+                                                      .withValues(alpha: 0.9),
+                                                  letterSpacing: 1,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         );
@@ -296,27 +387,32 @@ class _SplashScreenState extends State<SplashScreen>
 
               // Loading section
               Padding(
-                padding: const EdgeInsets.only(bottom: 50),
+                padding: const EdgeInsets.only(bottom: 60),
                 child: Column(
                   children: [
                     // Loading text
                     Text(
-                      'Loading...',
+                      'Preparing your experience...',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.8),
+                        color: Colors.white.withValues(alpha: 0.7),
                         fontSize: 14,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.5,
                       ),
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 24),
 
                     // Progress bar
                     Container(
-                      width: 200,
-                      height: 4,
+                      width: 240,
+                      height: 6,
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.3),
-                        borderRadius: BorderRadius.circular(2),
+                        color: Colors.white.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(3),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.1),
+                          width: 1,
+                        ),
                       ),
                       child: AnimatedBuilder(
                         animation: _progressController,
@@ -324,16 +420,20 @@ class _SplashScreenState extends State<SplashScreen>
                           return Stack(
                             children: [
                               Container(
-                                width: 200 * _progressAnimation.value,
-                                height: 4,
+                                width: 240 * _progressAnimation.value,
+                                height: 6,
                                 decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(2),
+                                  gradient: const LinearGradient(
+                                    colors: [Colors.white70, Colors.white],
+                                  ),
+                                  borderRadius: BorderRadius.circular(3),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.white.withOpacity(0.5),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 0),
+                                      color: Colors.white.withValues(
+                                        alpha: 0.3,
+                                      ),
+                                      blurRadius: 10,
+                                      spreadRadius: 1,
                                     ),
                                   ],
                                 ),
@@ -344,14 +444,16 @@ class _SplashScreenState extends State<SplashScreen>
                       ),
                     ),
 
-                    const SizedBox(height: 30),
+                    const SizedBox(height: 32),
 
                     // Version info
                     Text(
-                      'Version 1.0.0',
+                      'v1.0.0',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.6),
+                        color: Colors.white.withValues(alpha: 0.4),
                         fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 2,
                       ),
                     ),
                   ],

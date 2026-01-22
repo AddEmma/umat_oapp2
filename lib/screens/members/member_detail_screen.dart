@@ -1,10 +1,15 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../models/member.dart';
 import 'package:provider/provider.dart';
+import '../../services/auth_service.dart';
 import '../../services/database_service.dart';
+import '../../widgets/full_screen_image_viewer.dart';
 
 class MemberDetailScreen extends StatefulWidget {
   final Member member;
@@ -31,6 +36,8 @@ class _MemberDetailScreenState extends State<MemberDetailScreen>
   late ScrollController _scrollController;
   bool _isScrolled = false;
   bool _isDisposed = false; // Add disposal flag
+  bool _isUpdatingPhoto = false;
+  final ImagePicker _picker = ImagePicker();
 
   // Store current member state locally
   late Member _currentMember;
@@ -76,8 +83,10 @@ class _MemberDetailScreenState extends State<MemberDetailScreen>
     );
 
     _scrollController.addListener(_handleScroll);
-
     _animationController.forward();
+
+    // Check for lost data from image picker
+    _checkLostData();
 
     // Delay FAB animation with safety check
     Future.delayed(const Duration(milliseconds: 600), () {
@@ -154,15 +163,17 @@ class _MemberDetailScreenState extends State<MemberDetailScreen>
           ),
         ],
       ),
-      floatingActionButton: ScaleTransition(
-        scale: _fabScaleAnimation,
-        child: FloatingActionButton(
-          heroTag: "edit",
-          onPressed: _isDisposed ? null : () => _showEditDialog(),
-          backgroundColor: Theme.of(context).primaryColor,
-          child: const Icon(Icons.edit, color: Colors.white),
-        ),
-      ),
+      floatingActionButton: Provider.of<AuthService>(context).canEdit
+          ? ScaleTransition(
+              scale: _fabScaleAnimation,
+              child: FloatingActionButton(
+                heroTag: "edit",
+                onPressed: _isDisposed ? null : () => _showEditDialog(),
+                backgroundColor: Theme.of(context).primaryColor,
+                child: const Icon(Icons.edit, color: Colors.white),
+              ),
+            )
+          : null,
     );
   }
 
@@ -221,38 +232,49 @@ class _MemberDetailScreenState extends State<MemberDetailScreen>
             onSelected: _isDisposed
                 ? null
                 : (value) => _handleMenuAction(value),
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'edit',
-                child: Row(
-                  children: [
-                    Icon(Icons.edit),
-                    SizedBox(width: 12),
-                    Text('Edit Member'),
-                  ],
+            itemBuilder: (context) {
+              final authService = Provider.of<AuthService>(
+                context,
+                listen: false,
+              );
+              return [
+                if (authService.canEdit)
+                  const PopupMenuItem(
+                    value: 'edit',
+                    child: Row(
+                      children: [
+                        Icon(Icons.edit),
+                        SizedBox(width: 12),
+                        Text('Edit Member'),
+                      ],
+                    ),
+                  ),
+                const PopupMenuItem(
+                  value: 'share',
+                  child: Row(
+                    children: [
+                      Icon(Icons.share),
+                      SizedBox(width: 12),
+                      Text('Share Contact'),
+                    ],
+                  ),
                 ),
-              ),
-              const PopupMenuItem(
-                value: 'share',
-                child: Row(
-                  children: [
-                    Icon(Icons.share),
-                    SizedBox(width: 12),
-                    Text('Share Contact'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'delete',
-                child: Row(
-                  children: [
-                    Icon(Icons.delete, color: Colors.red),
-                    SizedBox(width: 12),
-                    Text('Delete Member', style: TextStyle(color: Colors.red)),
-                  ],
-                ),
-              ),
-            ],
+                if (authService.canEdit)
+                  const PopupMenuItem(
+                    value: 'delete',
+                    child: Row(
+                      children: [
+                        Icon(Icons.delete, color: Colors.red),
+                        SizedBox(width: 12),
+                        Text(
+                          'Delete Member',
+                          style: TextStyle(color: Colors.red),
+                        ),
+                      ],
+                    ),
+                  ),
+              ];
+            },
           ),
         ),
       ],
@@ -278,43 +300,110 @@ class _MemberDetailScreenState extends State<MemberDetailScreen>
         children: [
           Stack(
             children: [
-              Container(
-                width: 100,
-                height: 100,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: _currentMember.isBaptized
-                        ? [Colors.green.shade400, Colors.green.shade600]
-                        : [Colors.orange.shade400, Colors.orange.shade600],
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color:
+              GestureDetector(
+                onTap:
+                    (_currentMember.photoUrl != null &&
+                        _currentMember.photoUrl!.isNotEmpty)
+                    ? () {
+                        FullScreenImageViewer.show(
+                          context,
+                          imageUrl: _currentMember.photoUrl!,
+                          heroTag: 'member_photo_${_currentMember.id}',
+                          title: _currentMember.name,
+                        );
+                      }
+                    : null,
+                child: Hero(
+                  tag: 'member_photo_${_currentMember.id}',
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color:
+                            (_currentMember.isBaptized
+                                    ? Colors.green
+                                    : Colors.orange)
+                                .withValues(alpha: 0.3),
+                        width: 3,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color:
+                              (_currentMember.isBaptized
+                                      ? Colors.green
+                                      : Colors.orange)
+                                  .withValues(alpha: 0.1),
+                          blurRadius: 20,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: CircleAvatar(
+                      radius: 46,
+                      backgroundColor:
                           (_currentMember.isBaptized
                                   ? Colors.green
                                   : Colors.orange)
-                              .withOpacity(0.4),
-                      blurRadius: 20,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
-                ),
-                child: Center(
-                  child: Text(
-                    _currentMember.name.isNotEmpty
-                        ? _currentMember.name[0].toUpperCase()
-                        : '?',
-                    style: const TextStyle(
-                      fontSize: 40,
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
+                              .withValues(alpha: 0.1),
+                      backgroundImage:
+                          (_currentMember.photoUrl != null &&
+                              _currentMember.photoUrl!.isNotEmpty)
+                          ? NetworkImage(_currentMember.photoUrl!)
+                          : null,
+                      child: _isUpdatingPhoto
+                          ? const CircularProgressIndicator()
+                          : (_currentMember.photoUrl == null ||
+                                _currentMember.photoUrl!.isEmpty)
+                          ? Text(
+                              _currentMember.name.isNotEmpty
+                                  ? _currentMember.name[0].toUpperCase()
+                                  : '?',
+                              style: TextStyle(
+                                fontSize: 40,
+                                fontWeight: FontWeight.bold,
+                                color: _currentMember.isBaptized
+                                    ? Colors.green[800]
+                                    : Colors.orange[800],
+                              ),
+                            )
+                          : null,
                     ),
                   ),
                 ),
               ),
+              if (Provider.of<AuthService>(context, listen: false).canEdit)
+                Positioned(
+                  bottom: 0,
+                  right: 0,
+                  child: InkWell(
+                    onTap: _isUpdatingPhoto
+                        ? null
+                        : () => _updateProfileImage(),
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).primaryColor,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 2),
+                      ),
+                      child: _isUpdatingPhoto
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.camera_alt,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                    ),
+                  ),
+                ),
               if (_currentMember.isBaptized)
                 Positioned(
                   bottom: 4,
@@ -394,12 +483,12 @@ class _MemberDetailScreenState extends State<MemberDetailScreen>
       icon: Icons.contact_phone,
       color: Colors.blue,
       children: [
-        _buildContactRow(
-          'Email',
-          _currentMember.email.isEmpty ? 'Not provided' : _currentMember.email,
-          Icons.email,
-          onTap: _currentMember.email.isNotEmpty ? () => _launchEmail() : null,
-        ),
+        // _buildContactRow(
+        //   'Email',
+        //   _currentMember.email.isEmpty ? 'Not provided' : _currentMember.email,
+        //   Icons.email,
+        //   onTap: _currentMember.email.isNotEmpty ? () => _launchEmail() : null,
+        // ),
         const SizedBox(height: 16),
         _buildContactRow(
           'Phone',
@@ -609,7 +698,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen>
 
     // Create controllers for the text fields
     final nameController = TextEditingController(text: _currentMember.name);
-    final emailController = TextEditingController(text: _currentMember.email);
+    // final emailController = TextEditingController(text: _currentMember.email);
     final phoneController = TextEditingController(text: _currentMember.phone);
     final yearController = TextEditingController(text: _currentMember.year);
     final departmentController = TextEditingController(
@@ -649,14 +738,14 @@ class _MemberDetailScreenState extends State<MemberDetailScreen>
                       ),
                     ),
                     const SizedBox(height: 16),
-                    TextField(
-                      controller: emailController,
-                      decoration: const InputDecoration(
-                        labelText: 'Email',
-                        border: OutlineInputBorder(),
-                      ),
-                      keyboardType: TextInputType.emailAddress,
-                    ),
+                    // TextField(
+                    //   controller: emailController,
+                    //   decoration: const InputDecoration(
+                    //     labelText: 'Email',
+                    //     border: OutlineInputBorder(),
+                    //   ),
+                    //   keyboardType: TextInputType.emailAddress,
+                    // ),
                     const SizedBox(height: 16),
                     TextField(
                       controller: phoneController,
@@ -714,7 +803,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen>
                     try {
                       _safeDisposeControllers([
                         nameController,
-                        emailController,
+                        // emailController,
                         phoneController,
                         yearController,
                         departmentController,
@@ -736,7 +825,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen>
                       // Update member with new data
                       _updateMember(
                         name: nameController.text,
-                        email: emailController.text,
+                        // email: emailController.text,
                         phone: phoneController.text,
                         year: yearController.text,
                         department: departmentController.text,
@@ -747,7 +836,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen>
                       // Dispose controllers synchronously
                       _safeDisposeControllers([
                         nameController,
-                        emailController,
+                        // emailController,
                         phoneController,
                         yearController,
                         departmentController,
@@ -786,7 +875,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen>
   // Updated _updateMember method in MemberDetailScreen
   void _updateMember({
     required String name,
-    required String email,
+    // required String email,
     required String phone,
     required String year,
     required String department,
@@ -804,16 +893,13 @@ class _MemberDetailScreenState extends State<MemberDetailScreen>
       }
 
       // Create updated member
-      final updatedMember = Member(
-        id: widget.member.id,
+      final updatedMember = _currentMember.copyWith(
         name: name.trim(),
-        email: email.trim(),
         phone: phone.trim(),
         year: year.trim(),
         department: department.trim(),
         ministryRole: ministryRole.trim(),
         isBaptized: isBaptized,
-        dateAdded: widget.member.dateAdded,
       );
 
       debugPrint('Updating member: ${updatedMember.name}');
@@ -847,6 +933,81 @@ class _MemberDetailScreenState extends State<MemberDetailScreen>
       debugPrint('Error updating member: $e');
       if (mounted && !_isDisposed) {
         _showErrorSnackBar('Failed to update member: ${e.toString()}');
+      }
+    }
+  }
+
+  Future<void> _checkLostData() async {
+    final LostDataResponse response = await _picker.retrieveLostData();
+    if (response.isEmpty) {
+      return;
+    }
+    if (response.file != null) {
+      _uploadAndSetPhoto(response.file!);
+    } else {
+      debugPrint('Lost data error: ${response.exception?.code}');
+    }
+  }
+
+  Future<void> _uploadAndSetPhoto(XFile pickedFile) async {
+    if (!mounted || _isDisposed) return;
+
+    setState(() => _isUpdatingPhoto = true);
+
+    try {
+      final databaseService = Provider.of<DatabaseService>(
+        context,
+        listen: false,
+      );
+
+      // Upload image
+      final photoUrl = await databaseService.uploadProfileImage(
+        _currentMember.id.isEmpty
+            ? DateTime.now().millisecondsSinceEpoch.toString()
+            : _currentMember.id,
+        File(pickedFile.path),
+      );
+
+      // Update member
+      final updatedMember = _currentMember.copyWith(photoUrl: photoUrl);
+      await databaseService.updateMember(updatedMember);
+
+      if (mounted && !_isDisposed) {
+        setState(() {
+          _currentMember = updatedMember;
+          _isUpdatingPhoto = false;
+        });
+
+        _showSuccessSnackBar('Profile picture updated!');
+
+        if (widget.onMemberUpdated != null) {
+          widget.onMemberUpdated!(updatedMember);
+        }
+      }
+    } catch (e) {
+      debugPrint('Error uploading lost photo: $e');
+      if (mounted && !_isDisposed) {
+        setState(() => _isUpdatingPhoto = false);
+        _showErrorSnackBar('Failed to upload profile picture');
+      }
+    }
+  }
+
+  Future<void> _updateProfileImage() async {
+    try {
+      final XFile? pickedFile = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 70,
+      );
+
+      if (pickedFile == null || !mounted || _isDisposed) return;
+
+      _uploadAndSetPhoto(pickedFile);
+    } catch (e) {
+      debugPrint('Error updated profile picture: $e');
+      if (mounted && !_isDisposed) {
+        setState(() => _isUpdatingPhoto = false);
+        _showErrorSnackBar('Failed to update profile picture');
       }
     }
   }
@@ -918,7 +1079,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen>
       final contactInfo =
           '''
 ${_currentMember.name}
-${_currentMember.email.isNotEmpty ? 'Email: ${_currentMember.email}' : ''}
+
 ${_currentMember.phone.isNotEmpty ? 'Phone: ${_currentMember.phone}' : ''}
 ${_currentMember.department.isNotEmpty ? 'Department: ${_currentMember.department}' : ''}
 ${_currentMember.year.isNotEmpty ? 'Year: ${_currentMember.year}' : ''}
@@ -978,13 +1139,28 @@ ${_currentMember.year.isNotEmpty ? 'Year: ${_currentMember.year}' : ''}
     );
   }
 
-  void _launchEmail() {
-    if (_isDisposed || !mounted) return;
-    _showSuccessSnackBar('Opening email to ${_currentMember.email}');
-  }
+  // void _launchEmail() {
+  //   if (_isDisposed || !mounted) return;
+  //   _showSuccessSnackBar('Opening email to ${_currentMember.email}');
+  // }
 
-  void _launchPhone() {
+  void _launchPhone() async {
     if (_isDisposed || !mounted) return;
-    _showSuccessSnackBar('Calling ${_currentMember.phone}');
+    if (_currentMember.phone.isEmpty) {
+      _showErrorSnackBar('No phone number provided');
+      return;
+    }
+
+    final Uri phoneUri = Uri(scheme: 'tel', path: _currentMember.phone);
+    try {
+      if (await canLaunchUrl(phoneUri)) {
+        await launchUrl(phoneUri);
+      } else {
+        _showErrorSnackBar('Could not launch phone dialer');
+      }
+    } catch (e) {
+      debugPrint('Error launching phone: $e');
+      _showErrorSnackBar('Error: ${e.toString()}');
+    }
   }
 }

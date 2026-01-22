@@ -1,0 +1,104 @@
+﻿Running Gradle task 'assembleRelease'...                        
+flutter : 
+At line:1 char:1
++ flutter build apk 2>&1 | Out-File -FilePath 
+build_output.txt -Encodin ...
++ ~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:Strin 
+   g) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+FAILURE: Build failed with an exception.
+
+* Where:
+Settings file 
+'D:\umat_oapp2\android\settings.gradle.kts' line: 20
+
+* What went wrong:
+Error resolving plugin [id: 
+'dev.flutter.flutter-plugin-loader', version: 
+'1.0.0']
+> A problem occurred configuring project ':gradle'.
+   > Multiple build operations failed.
+         Could not read workspace metadata from C:\U
+sers\addae\.gradle\caches\8.12\transforms\de21c199aa
+80b9ecdde0e8d25653142c\metadata.bin
+         Could not read workspace metadata from C:\U
+sers\addae\.gradle\caches\8.12\transforms\867b0c9b1b
+844642cb0abbc22a1bc755\metadata.bin
+         Could not read workspace metadata from C:\U
+sers\addae\.gradle\caches\8.12\transforms\57f7cd823f
+335e5a07ba8760cf3fe105\metadata.bin
+         Could not read workspace metadata from C:\U
+sers\addae\.gradle\caches\8.12\transforms\575fcb8c56
+18c4ac9630ca8116076520\metadata.bin
+         Could not read workspace metadata from C:\U
+sers\addae\.gradle\caches\8.12\transforms\7edd50f96f
+bc571575219e03a93cba43\metadata.bin
+         Could not read workspace metadata from C:\U
+sers\addae\.gradle\caches\8.12\transforms\6132ff50e8
+49b4328d7c81fa98b027d9\metadata.bin
+         Could not read workspace metadata from C:\U
+sers\addae\.gradle\caches\8.12\transforms\bbc1909cd4
+5f9382876520af324dd2df\metadata.bin
+         Could not read workspace metadata from C:\U
+sers\addae\.gradle\caches\8.12\transforms\4859e50c48
+fba5c893be3f82e642e04c\metadata.bin
+         Could not read workspace metadata from C:\U
+sers\addae\.gradle\caches\8.12\transforms\b5964c4626
+a6ac2924bf9c9a9100adf4\metadata.bin
+         Could not read workspace metadata from C:\U
+sers\addae\.gradle\caches\8.12\transforms\6e3ef1e9b5
+601aad3137bf6ac019d12a\metadata.bin
+         ...and 3 more failures.
+      > Could not read workspace metadata from C:\Us
+ers\addae\.gradle\caches\8.12\transforms\de21c199aa8
+0b9ecdde0e8d25653142c\metadata.bin
+      > Could not read workspace metadata from C:\Us
+ers\addae\.gradle\caches\8.12\transforms\867b0c9b1b8
+44642cb0abbc22a1bc755\metadata.bin
+      > Could not read workspace metadata from C:\Us
+ers\addae\.gradle\caches\8.12\transforms\57f7cd823f3
+35e5a07ba8760cf3fe105\metadata.bin
+      > Could not read workspace metadata from C:\Us
+ers\addae\.gradle\caches\8.12\transforms\575fcb8c561
+8c4ac9630ca8116076520\metadata.bin
+      > Could not read workspace metadata from C:\Us
+ers\addae\.gradle\caches\8.12\transforms\7edd50f96fb
+c571575219e03a93cba43\metadata.bin
+      > Could not read workspace metadata from C:\Us
+ers\addae\.gradle\caches\8.12\transforms\6132ff50e84
+9b4328d7c81fa98b027d9\metadata.bin
+      > Could not read workspace metadata from C:\Us
+ers\addae\.gradle\caches\8.12\transforms\bbc1909cd45
+f9382876520af324dd2df\metadata.bin
+      > Could not read workspace metadata from C:\Us
+ers\addae\.gradle\caches\8.12\transforms\4859e50c48f
+ba5c893be3f82e642e04c\metadata.bin
+      > Could not read workspace metadata from C:\Us
+ers\addae\.gradle\caches\8.12\transforms\b5964c4626a
+6ac2924bf9c9a9100adf4\metadata.bin
+      > Could not read workspace metadata from C:\Us
+ers\addae\.gradle\caches\8.12\transforms\6e3ef1e9b56
+01aad3137bf6ac019d12a\metadata.bin
+      > Could not read workspace metadata from C:\Us
+ers\addae\.gradle\caches\8.12\transforms\e22ac01f360
+a2f4982af98a193cdd390\metadata.bin
+      > Could not read workspace metadata from C:\Us
+ers\addae\.gradle\caches\8.12\transforms\cb0ed2cc9b7
+d760feeceebe504bedab6\metadata.bin
+      > Could not read workspace metadata from C:\Us
+ers\addae\.gradle\caches\8.12\transforms\7190ed9035c
+2dee883e4569d6a79d6a7\metadata.bin
+
+* Try:
+> Run with --stacktrace option to get the stack 
+trace.
+> Run with --info or --debug option to get more log 
+output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 19s
+Running Gradle task 'assembleRelease'...                           20.6s
+Gradle task assembleRelease failed with exit code 1

@@ -2,6 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
 import '../../services/database_service.dart';
 import '../../models/member.dart';
 
@@ -16,7 +18,7 @@ class _AddMemberScreenState extends State<AddMemberScreen>
     with TickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  final _emailController = TextEditingController();
+  // final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
   final _yearController = TextEditingController();
   final _departmentController = TextEditingController();
@@ -26,6 +28,9 @@ class _AddMemberScreenState extends State<AddMemberScreen>
   bool _isLoading = false;
   String? _selectedYear;
   String? _selectedDepartment;
+
+  File? _profileImage;
+  final ImagePicker _picker = ImagePicker();
 
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -60,13 +65,14 @@ class _AddMemberScreenState extends State<AddMemberScreen>
       CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
     );
     _animationController.forward();
+    _checkLostData();
   }
 
   @override
   void dispose() {
     _animationController.dispose();
     _nameController.dispose();
-    _emailController.dispose();
+    // _emailController.dispose();
     _phoneController.dispose();
     _yearController.dispose();
     _departmentController.dispose();
@@ -157,6 +163,86 @@ class _AddMemberScreenState extends State<AddMemberScreen>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Profile Photo Section
+                      Center(
+                        child: Column(
+                          children: [
+                            Stack(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: Theme.of(
+                                        context,
+                                      ).primaryColor.withOpacity(0.2),
+                                      width: 4,
+                                    ),
+                                  ),
+                                  child: CircleAvatar(
+                                    radius: 60,
+                                    backgroundColor: Colors.grey[200],
+                                    backgroundImage: _profileImage != null
+                                        ? FileImage(_profileImage!)
+                                        : null,
+                                    child: _profileImage == null
+                                        ? Icon(
+                                            Icons.person_outline_rounded,
+                                            size: 60,
+                                            color: Colors.grey[400],
+                                          )
+                                        : null,
+                                  ),
+                                ),
+                                Positioned(
+                                  bottom: 4,
+                                  right: 4,
+                                  child: GestureDetector(
+                                    onTap: _pickImage,
+                                    child: Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: Theme.of(context).primaryColor,
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: Colors.white,
+                                          width: 2,
+                                        ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withOpacity(
+                                              0.1,
+                                            ),
+                                            blurRadius: 8,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ],
+                                      ),
+                                      child: const Icon(
+                                        Icons.camera_alt_rounded,
+                                        color: Colors.white,
+                                        size: 20,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Profile Photo',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey[600],
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+
                       // Personal Information Section
                       _buildSectionHeader(
                         'Personal Information',
@@ -166,35 +252,35 @@ class _AddMemberScreenState extends State<AddMemberScreen>
                       _buildTextField(
                         controller: _nameController,
                         label: 'Full Name',
-                        hint: 'e.g., John Doe',
+                        hint: 'e.g., Paul Essien',
                         icon: Icons.person,
                         validator: (value) => value?.isEmpty ?? true
                             ? 'Please enter full name'
                             : null,
                       ),
-                      SizedBox(height: 20),
-                      _buildTextField(
-                        controller: _emailController,
-                        label: 'Email Address',
-                        hint: 'e.g., john.doe@email.com',
-                        icon: Icons.email,
-                        keyboardType: TextInputType.emailAddress,
-                        validator: (value) {
-                          if (value?.isEmpty ?? true)
-                            return 'Please enter email address';
-                          if (!RegExp(
-                            r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
-                          ).hasMatch(value!)) {
-                            return 'Please enter a valid email address';
-                          }
-                          return null;
-                        },
-                      ),
+                      // SizedBox(height: 20),
+                      // _buildTextField(
+                      //   controller: _emailController,
+                      //   label: 'Email Address',
+                      //   hint: 'e.g., john.doe@email.com',
+                      //   icon: Icons.email,
+                      //   keyboardType: TextInputType.emailAddress,
+                      //   validator: (value) {
+                      //     if (value?.isEmpty ?? true)
+                      //       return 'Please enter email address';
+                      //     if (!RegExp(
+                      //       r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+                      //     ).hasMatch(value!)) {
+                      //       return 'Please enter a valid email address';
+                      //     }
+                      //     return null;
+                      //   },
+                      // ),
                       SizedBox(height: 20),
                       _buildTextField(
                         controller: _phoneController,
                         label: 'Phone Number',
-                        hint: 'e.g., +233 24 123 4567',
+                        hint: 'e.g., 0246878733',
                         icon: Icons.phone,
                         keyboardType: TextInputType.phone,
                         validator: (value) => value?.isEmpty ?? true
@@ -430,7 +516,7 @@ class _AddMemberScreenState extends State<AddMemberScreen>
             blurRadius: 10,
             offset: Offset(0, 2),
           ),
-        ], 
+        ],
       ),
       child: DropdownButtonFormField<String>(
         value: value,
@@ -553,6 +639,42 @@ class _AddMemberScreenState extends State<AddMemberScreen>
     );
   }
 
+  Future<void> _checkLostData() async {
+    final LostDataResponse response = await _picker.retrieveLostData();
+    if (response.isEmpty) {
+      return;
+    }
+    if (response.file != null) {
+      setState(() {
+        _profileImage = File(response.file!.path);
+      });
+    }
+  }
+
+  Future<void> _pickImage() async {
+    try {
+      final XFile? pickedFile = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 70,
+        maxWidth: 512,
+        maxHeight: 512,
+      );
+
+      if (pickedFile != null) {
+        setState(() {
+          _profileImage = File(pickedFile.path);
+        });
+      }
+    } catch (e) {
+      print('Error picking image: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Error picking image')));
+      }
+    }
+  }
+
   Future<void> _saveMember() async {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
@@ -560,7 +682,7 @@ class _AddMemberScreenState extends State<AddMemberScreen>
       final member = Member(
         id: '',
         name: _nameController.text.trim(),
-        email: _emailController.text.trim(),
+        // email: _emailController.text.trim(),
         phone: _phoneController.text.trim(),
         year: _yearController.text,
         department: _departmentController.text,
@@ -573,7 +695,7 @@ class _AddMemberScreenState extends State<AddMemberScreen>
         await Provider.of<DatabaseService>(
           context,
           listen: false,
-        ).addMember(member);
+        ).addMember(member, imageFile: _profileImage);
 
         if (!mounted) return;
 

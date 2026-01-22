@@ -7,15 +7,22 @@ import 'firebase_options.dart';
 
 import 'screens/splash/splash_screen.dart';
 import 'screens/auth/login_screen.dart';
+import 'screens/auth/register_screen.dart';
 import 'screens/main/main_navigation.dart';
 import 'screens/main/dashboard_screen.dart';
 import 'services/auth_service.dart';
 import 'services/database_service.dart';
 import 'services/chat_service.dart';
+import 'services/notification_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // Initialize Notifications
+  final notificationService = NotificationService();
+  await notificationService.initialize();
+
   runApp(const MyApp());
 }
 
@@ -46,6 +53,7 @@ class MyApp extends StatelessWidget {
           ),
         ),
         home: const AppWrapper(),
+        routes: {'/register': (context) => const RegisterScreen()},
         debugShowCheckedModeBanner: false,
       ),
     );
@@ -74,8 +82,8 @@ class _AppWrapperState extends State<AppWrapper> {
     final authService = Provider.of<AuthService>(context, listen: false);
     await authService.waitForInitialization();
 
-    // Show splash for at least 2 seconds for better UX
-    await Future.delayed(const Duration(seconds: 2));
+    // Show splash for a longer duration (at least 6 seconds) for better UX
+    await Future.delayed(const Duration(seconds: 6));
 
     if (mounted) {
       setState(() {

@@ -1,6 +1,8 @@
 // screens/members/members_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../../services/auth_service.dart';
 import '../../services/database_service.dart';
 import '../../models/member.dart';
 import 'add_member_screen.dart';
@@ -80,10 +82,13 @@ class _MembersScreenState extends State<MembersScreen>
         ),
         backgroundColor: Theme.of(context).primaryColor,
         elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
+        automaticallyImplyLeading: Navigator.canPop(context),
+        leading: Navigator.canPop(context)
+            ? IconButton(
+                icon: Icon(Icons.arrow_back, color: Colors.white),
+                onPressed: () => Navigator.pop(context),
+              )
+            : null,
       ),
       body: FadeTransition(
         opacity: _fadeAnimation,
@@ -273,6 +278,26 @@ class _MembersScreenState extends State<MembersScreen>
               child: StreamBuilder<List<Member>>(
                 stream: Provider.of<DatabaseService>(context).getMembers(),
                 builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.error_outline,
+                            size: 48,
+                            color: Colors.red[300],
+                          ),
+                          const SizedBox(height: 16),
+                          const Text(
+                            'Error loading members',
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return Center(
                       child: Column(
@@ -370,33 +395,38 @@ class _MembersScreenState extends State<MembersScreen>
           ],
         ),
       ),
-      floatingActionButton: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Theme.of(context).primaryColor.withOpacity(0.3),
-              blurRadius: 20,
-              offset: Offset(0, 8),
-            ),
-          ],
-        ),
-        child: FloatingActionButton.extended(
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => AddMemberScreen()),
-            );
-          },
-          icon: Icon(Icons.person_add, color: Colors.white),
-          label: Text(
-            'Add Member',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-          ),
-          backgroundColor: Theme.of(context).primaryColor,
-          elevation: 0,
-        ),
-      ),
+      floatingActionButton: Provider.of<AuthService>(context).canEdit
+          ? Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Theme.of(context).primaryColor.withOpacity(0.3),
+                    blurRadius: 20,
+                    offset: Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: FloatingActionButton.extended(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => AddMemberScreen()),
+                  );
+                },
+                icon: Icon(Icons.person_add, color: Colors.white),
+                label: Text(
+                  'Add Member',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                backgroundColor: Theme.of(context).primaryColor,
+                elevation: 0,
+              ),
+            )
+          : null,
     );
   }
 
@@ -469,74 +499,55 @@ class _MembersScreenState extends State<MembersScreen>
                 child: Row(
                   children: [
                     // Avatar with status indicator
-                    Stack(
-                      children: [
-                        Container(
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: LinearGradient(
-                              colors: member.isBaptized
-                                  ? [
-                                      Colors.green.shade300,
-                                      Colors.green.shade600,
-                                    ]
-                                  : [
-                                      Colors.orange.shade300,
-                                      Colors.orange.shade600,
-                                    ],
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color:
-                                    (member.isBaptized
-                                            ? Colors.green
-                                            : Colors.orange)
-                                        .withOpacity(0.3),
-                                blurRadius: 6,
-                                offset: Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Center(
-                            child: Text(
-                              member.name.isNotEmpty
-                                  ? member.name[0].toUpperCase()
-                                  : '?',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
+                    Container(
+                      padding: const EdgeInsets.all(3),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color:
+                              (member.isBaptized ? Colors.green : Colors.orange)
+                                  .withValues(alpha: 0.3),
+                          width: 2,
                         ),
-                        if (member.isBaptized)
-                          Positioned(
-                            bottom: 0,
-                            right: 0,
-                            child: Container(
-                              padding: EdgeInsets.all(1),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                shape: BoxShape.circle,
-                              ),
-                              child: Container(
-                                padding: EdgeInsets.all(3),
-                                decoration: BoxDecoration(
-                                  color: Colors.blue,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(
-                                  Icons.water_drop,
-                                  color: Colors.white,
-                                  size: 8,
-                                ),
-                              ),
-                            ),
+                        boxShadow: [
+                          BoxShadow(
+                            color:
+                                (member.isBaptized
+                                        ? Colors.green
+                                        : Colors.orange)
+                                    .withValues(alpha: 0.1),
+                            blurRadius: 8,
+                            offset: const Offset(0, 4),
                           ),
-                      ],
+                        ],
+                      ),
+                      child: CircleAvatar(
+                        radius: 24,
+                        backgroundColor:
+                            (member.isBaptized ? Colors.green : Colors.orange)
+                                .withValues(alpha: 0.1),
+                        backgroundImage:
+                            (member.photoUrl != null &&
+                                member.photoUrl!.isNotEmpty)
+                            ? NetworkImage(member.photoUrl!)
+                            : null,
+                        child:
+                            (member.photoUrl == null ||
+                                member.photoUrl!.isEmpty)
+                            ? Text(
+                                member.name.isNotEmpty
+                                    ? member.name[0].toUpperCase()
+                                    : '?',
+                                style: TextStyle(
+                                  color: member.isBaptized
+                                      ? Colors.green[800]
+                                      : Colors.orange[800],
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              )
+                            : null,
+                      ),
                     ),
                     SizedBox(width: 12),
 
@@ -587,6 +598,34 @@ class _MembersScreenState extends State<MembersScreen>
                         ],
                       ),
                     ),
+
+                    // Quick Call Action
+                    if (member.phone.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: Material(
+                          color: Colors.blue.withOpacity(0.1),
+                          shape: const CircleBorder(),
+                          child: InkWell(
+                            onTap: () {
+                              final Uri phoneUri = Uri(
+                                scheme: 'tel',
+                                path: member.phone,
+                              );
+                              launchUrl(phoneUri);
+                            },
+                            customBorder: const CircleBorder(),
+                            child: Padding(
+                              padding: const EdgeInsets.all(8.0),
+                              child: Icon(
+                                Icons.call_rounded,
+                                size: 18,
+                                color: Colors.blue[700],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
 
                     // Status and arrow
                     Column(
@@ -771,9 +810,9 @@ class _MembersScreenState extends State<MembersScreen>
                 member.name.toLowerCase().contains(
                   _searchQuery.toLowerCase(),
                 ) ||
-                member.email.toLowerCase().contains(
-                  _searchQuery.toLowerCase(),
-                ) ||
+                // member.email.toLowerCase().contains(
+                //   _searchQuery.toLowerCase(),
+                // ) ||
                 member.department.toLowerCase().contains(
                   _searchQuery.toLowerCase(),
                 ) ||

@@ -2,35 +2,35 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'package:share_plus/share_plus.dart';
-import 'dart:io';
+
 // ignore: unused_import
 import 'dart:convert';
 import '../../services/database_service.dart';
+import '../../services/auth_service.dart';
 import '../../models/member.dart';
 import '../../models/attendance_record.dart';
-import 'attendance_history_screen.dart';
+import 'attendance_sessions_screen.dart';
 
 class AttendanceScreen extends StatefulWidget {
-  const AttendanceScreen({super.key});
+  final DateTime? initialDate;
+  final String? initialEventType;
+
+  const AttendanceScreen({super.key, this.initialDate, this.initialEventType});
 
   @override
   _AttendanceScreenState createState() => _AttendanceScreenState();
 }
 
-class _AttendanceScreenState extends State<AttendanceScreen>
-    with TickerProviderStateMixin {
+class _AttendanceScreenState extends State<AttendanceScreen> {
   String _selectedEventType = 'Sunday Service';
   DateTime _selectedDate = DateTime.now();
   Map<String, AttendanceRecord> _attendanceRecords = {};
   bool _isLoading = false;
-  bool _isExporting = false;
-  List<Member> _currentMembers = [];
 
-  late AnimationController _animationController;
-  late Animation<double> _fadeAnimation;
+  // Search and Selection
+  bool _hasUnsavedChanges = false;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
 
   final List<String> _eventTypes = [
     'Sunday Service',
@@ -43,20 +43,18 @@ class _AttendanceScreenState extends State<AttendanceScreen>
   @override
   void initState() {
     super.initState();
-    _animationController = AnimationController(
-      duration: Duration(milliseconds: 400),
-      vsync: this,
-    );
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
-    );
-    _animationController.forward();
+    if (widget.initialDate != null) {
+      _selectedDate = widget.initialDate!;
+    }
+    if (widget.initialEventType != null) {
+      _selectedEventType = widget.initialEventType!;
+    }
     _loadExistingAttendance();
   }
 
   @override
   void dispose() {
-    _animationController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -78,226 +76,403 @@ class _AttendanceScreenState extends State<AttendanceScreen>
     });
   }
 
+  void _bulkMarkAttendance(List<Member> members, bool isPresent) {
+    setState(() {
+      for (var member in members) {
+        _toggleAttendance(member.id, isPresent);
+      }
+    });
+  }
+
+  Future<bool> _onWillPop() async {
+    if (!_hasUnsavedChanges) return true;
+
+    return await showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text('Unsaved Changes'),
+            content: Text(
+              'You have unsaved attendance changes. Are you sure you want to leave?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: Text('Leave'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        title: Text(
-          'Attendance',
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            color: Colors.white,
-            fontSize: 18,
-          ),
-        ),
-        backgroundColor: Theme.of(context).primaryColor,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 18),
-          onPressed: () => Navigator.pop(context),
-        ),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.history_rounded, color: Colors.white, size: 20),
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => AttendanceHistoryScreen(),
-              ),
+    return WillPopScope(
+      onWillPop: _onWillPop,
+      child: Scaffold(
+        backgroundColor: Colors.grey[50],
+        body: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Theme.of(context).primaryColor.withOpacity(0.03),
+                Colors.white,
+                Theme.of(context).primaryColor.withOpacity(0.01),
+              ],
             ),
           ),
-          IconButton(
-            icon: _isExporting
-                ? SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                    ),
-                  )
-                : Icon(Icons.download_rounded, color: Colors.white, size: 20),
-            onPressed: _isExporting ? null : _exportAttendance,
-          ),
-        ],
-      ),
-      body: FadeTransition(
-        opacity: _fadeAnimation,
-        child: Column(
-          children: [
-            // Compact Filters Section
-            Container(
-              padding: EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.03),
-                    blurRadius: 8,
-                    offset: Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  // Event Type Filter
-                  Expanded(
-                    flex: 2,
-                    child: Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade300),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          value: _selectedEventType,
-                          icon: Icon(
-                            Icons.keyboard_arrow_down,
-                            color: Colors.grey[600],
-                            size: 18,
-                          ),
-                          isExpanded: true,
-                          style: TextStyle(
-                            color: Colors.grey[800],
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          items: _eventTypes.map((String eventType) {
-                            return DropdownMenuItem<String>(
-                              value: eventType,
-                              child: Row(
+          child: Column(
+            children: [
+              Expanded(
+                child: CustomScrollView(
+                  slivers: [
+                    // Modern App Bar
+                    _buildSliverAppBar(context),
+
+                    // Filter Card
+                    SliverToBoxAdapter(child: _buildFilterCard()),
+
+                    // Attendance Content
+                    SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: StreamBuilder<List<Member>>(
+                        stream: Provider.of<DatabaseService>(
+                          context,
+                        ).getMembers(),
+                        builder: (context, snapshot) {
+                          if (snapshot.hasError) {
+                            return Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Icon(
-                                    _getEventIcon(eventType),
-                                    color: Theme.of(context).primaryColor,
-                                    size: 16,
+                                    Icons.error_outline,
+                                    size: 48,
+                                    color: Colors.red[300],
                                   ),
-                                  SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      eventType,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
+                                  const SizedBox(height: 16),
+                                  const Text(
+                                    'Error loading members',
+                                    style: TextStyle(color: Colors.grey),
                                   ),
                                 ],
                               ),
                             );
-                          }).toList(),
-                          onChanged: (String? newValue) {
-                            if (newValue != null) {
-                              setState(() => _selectedEventType = newValue);
-                              _loadExistingAttendance();
-                            }
-                          },
-                        ),
-                      ),
-                    ),
-                  ),
-                  SizedBox(width: 12),
+                          }
 
-                  // Date Filter
-                  Expanded(
-                    flex: 2,
-                    child: GestureDetector(
-                      onTap: _selectDate,
-                      child: Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 12,
-                        ),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey.shade300),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.calendar_today_rounded,
-                              color: Theme.of(context).primaryColor,
-                              size: 16,
-                            ),
-                            SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                DateFormat('MMM d, yyyy').format(_selectedDate),
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.grey[800],
+                          if (snapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return Center(
+                              child: CircularProgressIndicator(
+                                strokeWidth: 3,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Theme.of(context).primaryColor,
                                 ),
-                                overflow: TextOverflow.ellipsis,
                               ),
-                            ),
-                          ],
-                        ),
+                            );
+                          }
+
+                          if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                            return _buildEmptyState();
+                          }
+
+                          List<Member> members = snapshot.data!;
+                          return _buildAttendanceContent(members);
+                        },
                       ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Bottom Save Panel
+              _buildBottomActionPanel(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSliverAppBar(BuildContext context) {
+    return SliverAppBar(
+      expandedHeight: 0,
+      floating: false,
+      pinned: true,
+      backgroundColor: Theme.of(context).primaryColor,
+      elevation: 0,
+      leading: IconButton(
+        icon: const Icon(
+          Icons.arrow_back_ios_new,
+          color: Colors.white,
+          size: 18,
+        ),
+        onPressed: () => Navigator.pop(context),
+      ),
+      title: const Text(
+        'Take Attendance',
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 0.5,
+        ),
+      ),
+      actions: [
+        IconButton(
+          icon: const Icon(
+            Icons.history_rounded,
+            color: Colors.white,
+            size: 20,
+          ),
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const AttendanceSessionsScreen(),
+            ),
+          ),
+          tooltip: 'History',
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFilterCard() {
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.tune_rounded,
+                color: Theme.of(context).primaryColor,
+                size: 18,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Attendance Settings',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey[800],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              // Event Type
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => _showEventTypePicker(),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[50],
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey[200]!),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          _getEventIcon(_selectedEventType),
+                          color: Theme.of(context).primaryColor,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            _selectedEventType,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Date
+              Expanded(
+                child: GestureDetector(
+                  onTap: _selectDate,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[50],
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey[200]!),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.calendar_today_rounded,
+                          color: Theme.of(context).primaryColor,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            DateFormat('MMM d, yyyy').format(_selectedDate),
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showEventTypePicker() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Select Event Type',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              ..._eventTypes
+                  .map(
+                    (type) => ListTile(
+                      leading: Icon(
+                        _getEventIcon(type),
+                        color: Theme.of(context).primaryColor,
+                      ),
+                      title: Text(
+                        type,
+                        style: const TextStyle(fontWeight: FontWeight.w500),
+                      ),
+                      trailing: _selectedEventType == type
+                          ? Icon(
+                              Icons.check_circle_rounded,
+                              color: Theme.of(context).primaryColor,
+                            )
+                          : null,
+                      onTap: () {
+                        setState(() => _selectedEventType = type);
+                        _loadExistingAttendance();
+                        Navigator.pop(context);
+                      },
+                    ),
+                  )
+                  .toList(),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildBottomActionPanel() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, -4),
+          ),
+        ],
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_hasUnsavedChanges)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.info_outline_rounded,
+                    color: Colors.orange[700],
+                    size: 14,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'You have unsaved changes',
+                    style: TextStyle(
+                      color: Colors.orange[700],
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                 ],
               ),
             ),
-
-            // Attendance Content
-            Expanded(
-              child: StreamBuilder<List<Member>>(
-                stream: Provider.of<DatabaseService>(context).getMembers(),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return Center(
-                      child: CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          Theme.of(context).primaryColor,
-                        ),
-                      ),
-                    );
-                  }
-
-                  if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                    return _buildEmptyState();
-                  }
-
-                  List<Member> members = snapshot.data!;
-                  _currentMembers = members;
-                  return _buildAttendanceContent(members);
-                },
-              ),
-            ),
-
-            // Save Button
-            Container(
-              padding: EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 8,
-                    offset: Offset(0, -2),
-                  ),
-                ],
-              ),
-              child: SizedBox(
+          Consumer<AuthService>(
+            builder: (context, authService, child) {
+              return SizedBox(
                 width: double.infinity,
+                height: 52,
                 child: ElevatedButton(
-                  onPressed: _isLoading ? null : _saveAttendance,
+                  onPressed: (!authService.canEdit || _isLoading)
+                      ? null
+                      : _saveAttendance,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Theme.of(context).primaryColor,
                     foregroundColor: Colors.white,
-                    padding: EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
                     elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
                   ),
                   child: _isLoading
-                      ? SizedBox(
-                          height: 18,
-                          width: 18,
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
                           child: CircularProgressIndicator(
                             valueColor: AlwaysStoppedAnimation<Color>(
                               Colors.white,
@@ -305,18 +480,18 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                             strokeWidth: 2,
                           ),
                         )
-                      : Text(
-                          'Save Attendance',
+                      : const Text(
+                          'Submit Attendance',
                           style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
                 ),
-              ),
-            ),
-          ],
-        ),
+              );
+            },
+          ),
+        ],
       ),
     );
   }
@@ -326,119 +501,285 @@ class _AttendanceScreenState extends State<AttendanceScreen>
         .where((r) => r.isPresent)
         .length;
     int absentCount = members.length - presentCount;
+    double presentPercentage = members.isNotEmpty
+        ? presentCount / members.length
+        : 0.0;
+
+    // Filter members based on search query
+    List<Member> filteredMembers = members.where((member) {
+      if (_searchQuery.isEmpty) return true;
+      return member.name.toLowerCase().contains(_searchQuery.toLowerCase());
+    }).toList();
 
     return Column(
       children: [
-        // Compact Summary
-        Container(
-          margin: EdgeInsets.all(16),
-          padding: EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.04),
-                blurRadius: 8,
-                offset: Offset(0, 2),
+        // Summary Stats Card
+        _buildSummaryCard(
+          members.length,
+          presentCount,
+          absentCount,
+          presentPercentage,
+        ),
+
+        // Search and Bulk Actions
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Column(
+            children: [
+              TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText: 'Search members...',
+                  prefixIcon: Icon(
+                    Icons.search_rounded,
+                    color: Colors.grey[400],
+                    size: 20,
+                  ),
+                  suffixIcon: _searchQuery.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.cancel_rounded, size: 20),
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() => _searchQuery = '');
+                          },
+                        )
+                      : null,
+                  filled: true,
+                  fillColor: Colors.white,
+                  contentPadding: const EdgeInsets.symmetric(
+                    vertical: 0,
+                    horizontal: 16,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide(color: Colors.grey[200]!),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide(color: Colors.grey[200]!),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide(
+                      color: Theme.of(context).primaryColor.withOpacity(0.5),
+                    ),
+                  ),
+                ),
+                onChanged: (val) => setState(() => _searchQuery = val),
+              ),
+              const SizedBox(height: 8),
+              Consumer<AuthService>(
+                builder: (context, authService, _) {
+                  if (!authService.canEdit) return const SizedBox.shrink();
+
+                  bool isAllSelected =
+                      filteredMembers.isNotEmpty &&
+                      filteredMembers.every(
+                        (m) => _attendanceRecords[m.id]?.isPresent ?? false,
+                      );
+
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Row(
+                      children: [
+                        SizedBox(
+                          height: 24,
+                          width: 24,
+                          child: Checkbox(
+                            value: isAllSelected,
+                            onChanged: (val) => _bulkMarkAttendance(
+                              filteredMembers,
+                              val ?? false,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Mark All Present',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: isAllSelected
+                                ? Theme.of(context).primaryColor
+                                : Colors.grey[700],
+                          ),
+                        ),
+                        const Spacer(),
+                        if (_attendanceRecords.values.any((r) => r.isPresent))
+                          TextButton(
+                            onPressed: () =>
+                                _bulkMarkAttendance(filteredMembers, false),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                              ),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              foregroundColor: Colors.grey[600],
+                            ),
+                            child: const Text(
+                              'Reset All',
+                              style: TextStyle(fontSize: 12),
+                            ),
+                          ),
+                      ],
+                    ),
+                  );
+                },
               ),
             ],
           ),
+        ),
+
+        // Member List Header
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
           child: Row(
             children: [
-              _buildStatItem('Total', members.length.toString(), Colors.blue),
-              _buildStatItem('Present', presentCount.toString(), Colors.green),
-              _buildStatItem('Absent', absentCount.toString(), Colors.orange),
+              Text(
+                'MEMBERS (${filteredMembers.length})',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.grey[500],
+                  letterSpacing: 1,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                'ARRIVAL',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.grey[500],
+                  letterSpacing: 1,
+                ),
+              ),
+              const SizedBox(width: 45),
+              Text(
+                'STATUS',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.grey[500],
+                  letterSpacing: 1,
+                ),
+              ),
             ],
           ),
         ),
 
         // Member List
-        Expanded(
-          child: Container(
-            margin: EdgeInsets.symmetric(horizontal: 16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.04),
-                  blurRadius: 8,
-                  offset: Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Column(
-              children: [
-                // Header
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade50,
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(12),
-                      topRight: Radius.circular(12),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        flex: 3,
-                        child: Text(
-                          'Member',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey[700],
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        flex: 2,
-                        child: Text(
-                          'Arrival Time',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey[700],
-                            fontSize: 12,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                      Expanded(
-                        flex: 1,
-                        child: Text(
-                          'Present',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey[700],
-                            fontSize: 12,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+        ...filteredMembers.map((member) {
+          final attendanceRecord = _attendanceRecords[member.id];
+          return _buildMemberRow(member, attendanceRecord);
+        }).toList(),
 
-                // Member List
-                Expanded(
-                  child: ListView.builder(
-                    padding: EdgeInsets.zero,
-                    itemCount: members.length,
-                    itemBuilder: (context, index) {
-                      final member = members[index];
-                      final attendanceRecord = _attendanceRecords[member.id];
-                      return _buildMemberRow(member, attendanceRecord);
-                    },
+        const SizedBox(height: 100), // Bottom spacing
+      ],
+    );
+  }
+
+  Widget _buildSummaryCard(
+    int total,
+    int present,
+    int absent,
+    double percentage,
+  ) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Quick Summary',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.grey,
+                    letterSpacing: 0.5,
                   ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    _buildStatMiniItem('Total', '$total', Colors.blue),
+                    _buildStatMiniItem('Present', '$present', Colors.green),
+                    _buildStatMiniItem('Absent', '$absent', Colors.orange),
+                  ],
                 ),
               ],
             ),
           ),
-        ),
-        SizedBox(height: 16),
-      ],
+          const SizedBox(width: 20),
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              SizedBox(
+                width: 60,
+                height: 60,
+                child: CircularProgressIndicator(
+                  value: percentage,
+                  strokeWidth: 8,
+                  backgroundColor: Colors.grey[100],
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.green[400]!),
+                ),
+              ),
+              Text(
+                '${(percentage * 100).toInt()}%',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatMiniItem(String label, String value, Color color) {
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey[500],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -447,12 +788,23 @@ class _AttendanceScreenState extends State<AttendanceScreen>
     final arrivalTime = record?.arrivalTime;
 
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isPresent ? Colors.green.withOpacity(0.03) : Colors.transparent,
-        border: Border(
-          bottom: BorderSide(color: Colors.grey.withOpacity(0.1), width: 1),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isPresent ? Colors.green.withOpacity(0.2) : Colors.grey[100]!,
+          width: 1.5,
         ),
+        boxShadow: [
+          if (isPresent)
+            BoxShadow(
+              color: Colors.green.withOpacity(0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+        ],
       ),
       child: Row(
         children: [
@@ -462,30 +814,39 @@ class _AttendanceScreenState extends State<AttendanceScreen>
             child: Row(
               children: [
                 Container(
-                  width: 32,
-                  height: 32,
+                  width: 40,
+                  height: 40,
                   decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: member.isBaptized
+                          ? [Colors.green[400]!, Colors.green[600]!]
+                          : [Colors.orange[300]!, Colors.orange[500]!],
+                    ),
                     shape: BoxShape.circle,
-                    color: member.isBaptized
-                        ? Colors.green.shade100
-                        : Colors.orange.shade100,
+                    boxShadow: [
+                      BoxShadow(
+                        color:
+                            (member.isBaptized ? Colors.green : Colors.orange)
+                                .withOpacity(0.2),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
                   child: Center(
                     child: Text(
                       member.name.isNotEmpty
                           ? member.name[0].toUpperCase()
                           : '?',
-                      style: TextStyle(
-                        color: member.isBaptized
-                            ? Colors.green.shade700
-                            : Colors.orange.shade700,
-                        fontSize: 12,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
                 ),
-                SizedBox(width: 12),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -493,21 +854,32 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                       Text(
                         member.name,
                         style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
                           color: Colors.grey[800],
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),
                       if (member.ministryRole.isNotEmpty) ...[
-                        SizedBox(height: 2),
-                        Text(
-                          member.ministryRole,
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: Colors.grey[500],
+                        const SizedBox(height: 2),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
                           ),
-                          overflow: TextOverflow.ellipsis,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[100],
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            member.ministryRole,
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey[500],
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                       ],
                     ],
@@ -525,57 +897,40 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                   ? DateFormat('h:mm a').format(arrivalTime)
                   : '--:--',
               style: TextStyle(
-                fontSize: 11,
+                fontSize: 12,
                 color: arrivalTime != null
                     ? Colors.green[700]
                     : Colors.grey[400],
                 fontWeight: arrivalTime != null
-                    ? FontWeight.w600
+                    ? FontWeight.bold
                     : FontWeight.normal,
               ),
               textAlign: TextAlign.center,
             ),
           ),
 
-          // Checkbox
+          // Checkbox for Attendance
           Expanded(
             flex: 1,
             child: Center(
-              child: Checkbox(
-                value: isPresent,
-                onChanged: (bool? value) {
-                  _toggleAttendance(member.id, value ?? false);
+              child: Consumer<AuthService>(
+                builder: (context, authService, child) {
+                  return Transform.scale(
+                    scale: 1.1,
+                    child: Checkbox(
+                      value: isPresent,
+                      onChanged: authService.canEdit
+                          ? (bool? value) =>
+                                _toggleAttendance(member.id, value ?? false)
+                          : null,
+                      activeColor: Colors.green,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  );
                 },
-                activeColor: Colors.green,
-                checkColor: Colors.white,
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatItem(String label, String value, Color color) {
-    return Expanded(
-      child: Column(
-        children: [
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
-          SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              color: Colors.grey[600],
-              fontWeight: FontWeight.w500,
             ),
           ),
         ],
@@ -712,131 +1067,5 @@ class _AttendanceScreenState extends State<AttendanceScreen>
     } finally {
       setState(() => _isLoading = false);
     }
-  }
-
-  Future<void> _exportAttendance() async {
-    setState(() => _isExporting = true);
-
-    try {
-      String csvContent = await _generateCSVContent();
-
-      // Use app-specific directory that doesn't require permissions
-      Directory directory;
-      if (Platform.isAndroid) {
-        // For Android: Use app-specific external directory
-        directory =
-            await getExternalStorageDirectory() ??
-            await getApplicationDocumentsDirectory();
-      } else {
-        // For iOS: Use documents directory
-        directory = await getApplicationDocumentsDirectory();
-      }
-
-      String formattedDate = DateFormat('yyyy-MM-dd').format(_selectedDate);
-      String sanitizedEventType = _selectedEventType.replaceAll(' ', '_');
-      String fileName = 'attendance_${sanitizedEventType}_$formattedDate.csv';
-      String filePath = '${directory.path}/$fileName';
-
-      File file = File(filePath);
-      await file.writeAsString(csvContent);
-
-      _showExportSuccessDialog(file);
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Export failed: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    } finally {
-      setState(() => _isExporting = false);
-    }
-  }
-
-  Future<String> _generateCSVContent() async {
-    StringBuffer csv = StringBuffer();
-
-    csv.writeln('Church Attendance Report');
-    csv.writeln('Event Type,${_selectedEventType}');
-    csv.writeln('Date,${DateFormat('yyyy-MM-dd').format(_selectedDate)}');
-    csv.writeln(
-      'Generated On,${DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now())}',
-    );
-    csv.writeln('');
-
-    int presentCount = _attendanceRecords.values
-        .where((r) => r.isPresent)
-        .length;
-    int totalMembers = _currentMembers.length;
-    int absentCount = totalMembers - presentCount;
-    double attendanceRate = totalMembers > 0
-        ? (presentCount / totalMembers) * 100
-        : 0;
-
-    csv.writeln('SUMMARY');
-    csv.writeln('Total Members,$totalMembers');
-    csv.writeln('Present,$presentCount');
-    csv.writeln('Absent,$absentCount');
-    csv.writeln('Attendance Rate,${attendanceRate.toStringAsFixed(1)}%');
-    csv.writeln('');
-
-    csv.writeln('DETAILED ATTENDANCE');
-    csv.writeln('Name,Ministry Role,Baptized,Present,Arrival Time,Status');
-
-    for (Member member in _currentMembers) {
-      AttendanceRecord? record = _attendanceRecords[member.id];
-      String name = _escapeCSV(member.name);
-      String role = _escapeCSV(member.ministryRole);
-      String baptized = member.isBaptized ? 'Yes' : 'No';
-      String present = (record?.isPresent ?? false) ? 'Yes' : 'No';
-      String arrivalTime = record?.arrivalTime != null
-          ? DateFormat('HH:mm:ss').format(record!.arrivalTime!)
-          : 'N/A';
-      String status = (record?.isPresent ?? false) ? 'Present' : 'Absent';
-
-      csv.writeln('$name,$role,$baptized,$present,$arrivalTime,$status');
-    }
-
-    return csv.toString();
-  }
-
-  String _escapeCSV(String field) {
-    if (field.contains(',') || field.contains('"') || field.contains('\n')) {
-      return '"${field.replaceAll('"', '""')}"';
-    }
-    return field;
-  }
-
-  void _showExportSuccessDialog(File file) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text('Export Complete'),
-          content: Text('Attendance data exported successfully!'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text('Close'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                Navigator.of(context).pop();
-                try {
-                  await Share.shareXFiles([
-                    XFile(file.path),
-                  ], text: 'Church Attendance Report');
-                } catch (e) {
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(SnackBar(content: Text('Share failed: $e')));
-                }
-              },
-              child: Text('Share'),
-            ),
-          ],
-        );
-      },
-    );
   }
 }

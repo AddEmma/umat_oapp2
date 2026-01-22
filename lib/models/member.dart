@@ -1,24 +1,26 @@
 class Member {
   final String id;
   final String name;
-  final String email;
+  // final String email;
   final String phone;
   final String year;
   final String department;
   final bool isBaptized;
   final String ministryRole;
+  final String? photoUrl;
   final DateTime dateAdded;
   final Map<String, dynamic> attendanceRecord;
 
   Member({
     required this.id,
     required this.name,
-    required this.email,
+    // required this.email,
     required this.phone,
     required this.year,
     required this.department,
     required this.isBaptized,
     required this.ministryRole,
+    this.photoUrl,
     required this.dateAdded,
     this.attendanceRecord = const {},
   });
@@ -27,12 +29,15 @@ class Member {
     return Member(
       id: id,
       name: map['name'] ?? '',
-      email: map['email'] ?? '',
+      // email: map['email'] ?? '',
       phone: map['phone'] ?? '',
       year: map['year'] ?? '',
       department: map['department'] ?? '',
       isBaptized: map['isBaptized'] ?? false,
       ministryRole: map['ministryRole'] ?? '',
+      photoUrl: (map['photoUrl'] as String?)?.isEmpty == true
+          ? null
+          : map['photoUrl'],
       dateAdded: DateTime.parse(
         map['dateAdded'] ?? DateTime.now().toIso8601String(),
       ),
@@ -45,12 +50,13 @@ class Member {
   Map<String, dynamic> toMap() {
     return {
       'name': name,
-      'email': email,
+      // 'email': email,
       'phone': phone,
       'year': year,
       'department': department,
       'isBaptized': isBaptized,
       'ministryRole': ministryRole,
+      'photoUrl': photoUrl,
       'dateAdded': dateAdded.toIso8601String(),
       'attendanceRecord': attendanceRecord,
     };
@@ -60,24 +66,26 @@ class Member {
   Member copyWith({
     String? id,
     String? name,
-    String? email,
+    // String? email,
     String? phone,
     String? year,
     String? department,
     bool? isBaptized,
     String? ministryRole,
+    String? photoUrl,
     DateTime? dateAdded,
     Map<String, dynamic>? attendanceRecord,
   }) {
     return Member(
       id: id ?? this.id,
       name: name ?? this.name,
-      email: email ?? this.email,
+      // email: email ?? this.email,
       phone: phone ?? this.phone,
       year: year ?? this.year,
       department: department ?? this.department,
       isBaptized: isBaptized ?? this.isBaptized,
       ministryRole: ministryRole ?? this.ministryRole,
+      photoUrl: photoUrl ?? this.photoUrl,
       dateAdded: dateAdded ?? this.dateAdded,
       attendanceRecord: attendanceRecord ?? this.attendanceRecord,
     );
@@ -85,7 +93,7 @@ class Member {
 
   @override
   String toString() {
-    return 'Member{id: $id, name: $name, email: $email, phone: $phone, year: $year, department: $department, isBaptized: $isBaptized, ministryRole: $ministryRole, dateAdded: $dateAdded}';
+    return 'Member{id: $id, name: $name, phone: $phone, year: $year, department: $department, isBaptized: $isBaptized, ministryRole: $ministryRole, dateAdded: $dateAdded}';
   }
 
   @override
@@ -95,7 +103,7 @@ class Member {
     return other is Member &&
         other.id == id &&
         other.name == name &&
-        other.email == email &&
+        // other.email == email &&
         other.phone == phone &&
         other.year == year &&
         other.department == department &&
@@ -108,7 +116,7 @@ class Member {
   int get hashCode {
     return id.hashCode ^
         name.hashCode ^
-        email.hashCode ^
+        // email.hashCode ^
         phone.hashCode ^
         year.hashCode ^
         department.hashCode ^

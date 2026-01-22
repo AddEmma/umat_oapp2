@@ -1,12 +1,70 @@
-// services/database_service.dart
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:io';
 import '../models/member.dart';
 import '../models/meeting.dart';
 import '../models/attendance_record.dart';
 
 class DatabaseService extends ChangeNotifier {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  // Users & Roles
+  Future<void> createUserProfile(
+    String uid,
+    String email,
+    String name,
+    String role, {
+    String? phoneNumber,
+    String? photoUrl,
+  }) async {
+    await _db.collection('users').doc(uid).set({
+      'email': email,
+      'name': name,
+      'role': role,
+      'phoneNumber': phoneNumber,
+      'photoUrl': photoUrl,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<String> uploadProfileImage(String uid, File imageFile) async {
+    try {
+      final currentUser = _auth.currentUser;
+      print('DEBUG: Current authenticated user UID: ${currentUser?.uid}');
+      print(
+        'DEBUG: Uploading image to bucket: ${_storage.app.options.storageBucket}',
+      );
+
+      if (!await imageFile.exists()) {
+        throw Exception('Source file does not exist: ${imageFile.path}');
+      }
+
+      final ref = _storage.ref().child('user_profiles').child('$uid.jpg');
+      print('DEBUG: Target Storage path: ${ref.fullPath}');
+
+      await ref.putFile(imageFile);
+      return await ref.getDownloadURL();
+    } catch (e) {
+      print('Error uploading profile image: $e');
+      if (e is FirebaseException) {
+        print('Firebase Storage Error Code: ${e.code}');
+        print('Firebase Storage Error Message: ${e.message}');
+      }
+      throw Exception('Failed to upload profile image: $e');
+    }
+  }
+
+  Future<String?> getUserRole(String uid) async {
+    DocumentSnapshot doc = await _db.collection('users').doc(uid).get();
+    if (doc.exists && doc.data() != null) {
+      return (doc.data() as Map<String, dynamic>)['role'] as String?;
+    }
+    return null;
+  }
 
   // Members
   Stream<List<Member>> getMembers() {
@@ -17,8 +75,34 @@ class DatabaseService extends ChangeNotifier {
     });
   }
 
-  Future<void> addMember(Member member) async {
-    await _db.collection('members').add(member.toMap());
+  Stream<List<Member>> getRecentMembersStream({int limit = 5}) {
+    return _db
+        .collection('members')
+        .orderBy('dateAdded', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map((snapshot) {
+          return snapshot.docs
+              .map((doc) => Member.fromMap(doc.data(), doc.id))
+              .toList();
+        });
+  }
+
+  Future<void> addMember(Member member, {File? imageFile}) async {
+    final docRef = _db.collection('members').doc();
+    String? photoUrl = member.photoUrl;
+
+    if (imageFile != null) {
+      try {
+        photoUrl = await uploadProfileImage(docRef.id, imageFile);
+      } catch (e) {
+        print('Error uploading member photo: $e');
+        // Continue without photo if upload fails, or we could rethrow
+      }
+    }
+
+    final finalMember = member.copyWith(photoUrl: photoUrl);
+    await docRef.set(finalMember.toMap());
     notifyListeners();
   }
 
@@ -156,7 +240,6 @@ class DatabaseService extends ChangeNotifier {
               .where((record) => record.eventType == eventType)
               .toList();
         }
-
         return records;
       });
     } else {
@@ -207,6 +290,46 @@ class DatabaseService extends ChangeNotifier {
             return records;
           });
     }
+  }
+
+  // Stream of session summaries (unique Date + Event Type)
+  Stream<List<Map<String, dynamic>>> getAttendanceSessions() {
+    return _db
+        .collection('attendance_records')
+        .orderBy('dateTimestamp', descending: true)
+        .snapshots()
+        .map((snapshot) {
+          final Map<String, Map<String, dynamic>> sessions = {};
+
+          for (var doc in snapshot.docs) {
+            final data = doc.data() as Map<String, dynamic>;
+            final dateStr = data['dateString'] ?? '';
+            final eventType = data['eventType'] ?? '';
+            final key = '${dateStr}_$eventType';
+
+            if (!sessions.containsKey(key)) {
+              sessions[key] = {
+                'date': (data['dateTimestamp'] as Timestamp).toDate(),
+                'dateString': dateStr,
+                'eventType': eventType,
+                'presentCount': 0,
+                'absentCount': 0,
+                'totalMembers': 0,
+              };
+            }
+
+            sessions[key]!['totalMembers']++;
+            if (data['isPresent'] == true) {
+              sessions[key]!['presentCount']++;
+            } else {
+              sessions[key]!['absentCount']++;
+            }
+          }
+
+          return sessions.values.toList()..sort(
+            (a, b) => (b['date'] as DateTime).compareTo(a['date'] as DateTime),
+          );
+        });
   }
 
   // Alternative method for event-specific queries (if you want to create a simple index)
@@ -474,5 +597,89 @@ class DatabaseService extends ChangeNotifier {
     if (batchCount > 0) {
       await batch.commit();
     }
+  }
+
+  // Announcements
+  Future<void> postAnnouncement(
+    String title,
+    String body,
+    String senderName, {
+    String? senderId,
+    String? senderPhotoUrl,
+  }) async {
+    await _db.collection('announcements').add({
+      'title': title,
+      'body': body,
+      'senderName': senderName,
+      'senderId': senderId,
+      'senderPhotoUrl': senderPhotoUrl,
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Stream<QuerySnapshot> getAnnouncements() {
+    return _db
+        .collection('announcements')
+        .orderBy('timestamp', descending: true)
+        .snapshots();
+  }
+
+  // Get stream of latest announcement for unread check
+  Stream<QuerySnapshot> getLatestAnnouncementStream() {
+    return _db
+        .collection('announcements')
+        .orderBy('timestamp', descending: true)
+        .limit(1)
+        .snapshots();
+  }
+
+  // Update user's last read time
+  Future<void> updateLastAnnouncementRead(String userId) async {
+    await _db.collection('users').doc(userId).update({
+      'lastAnnouncementRead': FieldValue.serverTimestamp(),
+    });
+  }
+
+  // Get user's profile stream to check lastRead
+  Stream<DocumentSnapshot> getUserProfileStream(String userId) {
+    return _db.collection('users').doc(userId).snapshots();
+  }
+
+  // Batch save attendance records
+  Future<void> batchSaveAttendanceRecords(
+    List<AttendanceRecord> records,
+  ) async {
+    WriteBatch batch = _db.batch();
+    int batchCount = 0;
+
+    for (var record in records) {
+      DocumentReference docRef;
+      if (record.id != null) {
+        docRef = _db.collection('attendance_records').doc(record.id);
+      } else {
+        docRef = _db.collection('attendance_records').doc();
+      }
+
+      // Ensure ID is set in the record if it was generated
+      Map<String, dynamic> data = record.toMap();
+      if (record.id == null) {
+        // If we are generating a new ID, we don't necessarily update the record object here easily
+        // but for set() with new doc ref, it works.
+      }
+
+      batch.set(docRef, data);
+      batchCount++;
+
+      if (batchCount >= 500) {
+        await batch.commit();
+        batch = _db.batch();
+        batchCount = 0;
+      }
+    }
+
+    if (batchCount > 0) {
+      await batch.commit();
+    }
+    notifyListeners();
   }
 }

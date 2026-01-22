@@ -29,13 +29,13 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: "AIzaSyDhKe92mK8diMqYywUuYjsQG2KzqieGMHY",
-    authDomain: "umat-srid.firebaseapp.com",
-    projectId: "umat-srid",
-    storageBucket: "umat-srid.firebasestorage.app",
-    messagingSenderId: "878956500215",
-    appId: "1:878956500215:web:ed15355c4fb10cfddbeff2",
-    measurementId: "G-SDR5JSQ832",
+    apiKey: 'AIzaSyDsPCI-fumUklZ3y9BR0fJ4r1XEZZ2FU34',
+    appId: '1:98035957466:web:7bf4d7d5901c5677fd6fe3',
+    messagingSenderId: '98035957466',
+    projectId: 'umat-srid-fef04',
+    authDomain: 'umat-srid-fef04.firebaseapp.com',
+    storageBucket: 'umat-srid-fef04.firebasestorage.app',
+    measurementId: 'G-9Z5M48KLJ1',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
@@ -47,28 +47,31 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'YOUR_IOS_API_KEY',
-    appId: 'YOUR_IOS_APP_ID',
-    messagingSenderId: '878956500215',
-    projectId: 'umat-srid',
-    storageBucket: 'umat-srid.firebasestorage.app',
+    apiKey: 'AIzaSyDoRT9TMo9DVrfvYhBjXCZD3K9qAwFwx3g',
+    appId:
+        '1:98035957466:ios:380775153b9e985cfd6fe3', // Inferred, but matches project number
+    messagingSenderId: '98035957466',
+    projectId: 'umat-srid-fef04',
+    storageBucket: 'umat-srid-fef04.firebasestorage.app',
     iosBundleId: 'com.example.umatSridOapp',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'YOUR_MACOS_API_KEY',
-    appId: 'YOUR_MACOS_APP_ID',
-    messagingSenderId: '878956500215',
-    projectId: 'umat-srid',
-    storageBucket: 'umat-srid.firebasestorage.app',
+    apiKey: 'AIzaSyDoRT9TMo9DVrfvYhBjXCZD3K9qAwFwx3g',
+    appId: '1:98035957466:ios:380775153b9e985cfd6fe3',
+    messagingSenderId: '98035957466',
+    projectId: 'umat-srid-fef04',
+    storageBucket: 'umat-srid-fef04.firebasestorage.app',
     iosBundleId: 'com.example.umatSridOapp',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'YOUR_WINDOWS_API_KEY',
-    appId: 'YOUR_WINDOWS_APP_ID',
-    messagingSenderId: '878956500215',
-    projectId: 'umat-srid',
-    storageBucket: 'umat-srid.firebasestorage.app',
+    apiKey: 'AIzaSyDsPCI-fumUklZ3y9BR0fJ4r1XEZZ2FU34',
+    appId: '1:98035957466:web:7bf4d7d5901c5677fd6fe3',
+    messagingSenderId: '98035957466',
+    projectId: 'umat-srid-fef04',
+    authDomain: 'umat-srid-fef04.firebaseapp.com',
+    storageBucket: 'umat-srid-fef04.firebasestorage.app',
+    measurementId: 'G-9Z5M48KLJ1',
   );
 }

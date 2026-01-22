@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-import 'package:umat_srid_oapp/services/auth_service.dart';
+import '../../services/auth_service.dart';
 import '../../services/database_service.dart';
 import '../../models/meeting.dart';
 import 'create_meeting_screen.dart';
@@ -118,33 +118,40 @@ class _MeetingsScreenState extends State<MeetingsScreen>
           );
         },
       ),
-      floatingActionButton: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Theme.of(context).primaryColor.withOpacity(0.3),
-              blurRadius: 20,
-              offset: Offset(0, 8),
-            ),
-          ],
-        ),
-        child: FloatingActionButton.extended(
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => CreateMeetingScreen()),
-            );
-          },
-          icon: Icon(Icons.add, color: Colors.white),
-          label: Text(
-            'Schedule Meeting',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-          ),
-          backgroundColor: Theme.of(context).primaryColor,
-          elevation: 0,
-        ),
-      ),
+      floatingActionButton: Provider.of<AuthService>(context).canEdit
+          ? Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Theme.of(context).primaryColor.withOpacity(0.3),
+                    blurRadius: 20,
+                    offset: Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: FloatingActionButton.extended(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => CreateMeetingScreen(),
+                    ),
+                  );
+                },
+                icon: Icon(Icons.add, color: Colors.white),
+                label: Text(
+                  'Schedule Meeting',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                backgroundColor: Theme.of(context).primaryColor,
+                elevation: 0,
+              ),
+            )
+          : null,
     );
   }
 

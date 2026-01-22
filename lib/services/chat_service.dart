@@ -79,21 +79,46 @@ class ChatService extends ChangeNotifier {
         });
   }
 
-  Future<void> sendMessage(String message, String chatRoom) async {
+  Future<void> sendMessage(
+    String message,
+    String chatRoom, {
+    String? replyToId,
+    String? replyToMessage,
+    String? replyToSenderName,
+    List<String>? mentions,
+  }) async {
     final user = _auth.currentUser;
     print("🔐 Current user: ${user?.email} (${user?.uid})");
     print("💬 Sending message: '$message' to room: '$chatRoom'");
+    if (replyToId != null) {
+      print("↩️ Replying to message: $replyToId");
+    }
+    if (mentions != null && mentions.isNotEmpty) {
+      print("👥 Mentioning users: $mentions");
+    }
 
     if (user != null && message.trim().isNotEmpty) {
       try {
         // Use server timestamp for better consistency
-        final messageData = {
+        final messageData = <String, dynamic>{
           'senderId': user.uid,
           'senderName': user.displayName ?? user.email ?? 'Organizer',
           'message': message.trim(),
           'timestamp': FieldValue.serverTimestamp(),
           'chatRoom': chatRoom,
         };
+
+        // Add reply data if present
+        if (replyToId != null && replyToId.isNotEmpty) {
+          messageData['replyToId'] = replyToId;
+          messageData['replyToMessage'] = replyToMessage ?? '';
+          messageData['replyToSenderName'] = replyToSenderName ?? '';
+        }
+
+        // Add mentions if present
+        if (mentions != null && mentions.isNotEmpty) {
+          messageData['mentions'] = mentions;
+        }
 
         print("📤 Sending message data: $messageData");
 
@@ -108,6 +133,46 @@ class ChatService extends ChangeNotifier {
     } else {
       print("❌ Cannot send message - User: $user, Message: '$message'");
     }
+  }
+
+  /// Get list of users for @mention suggestions
+  /// Returns a list of maps with 'id', 'name', and optionally 'photoUrl'
+  Future<List<Map<String, String>>> getChatUsers() async {
+    try {
+      final snapshot = await _db.collection('users').get();
+
+      return snapshot.docs.map((doc) {
+        final data = doc.data();
+        return {
+          'id': doc.id,
+          'name':
+              data['name']?.toString() ??
+              data['email']?.toString() ??
+              'Unknown',
+          'photoUrl': data['photoUrl']?.toString() ?? '',
+        };
+      }).toList();
+    } catch (e) {
+      print("❌ Error getting chat users: $e");
+      return [];
+    }
+  }
+
+  /// Stream of users for real-time mention suggestions
+  Stream<List<Map<String, String>>> getChatUsersStream() {
+    return _db.collection('users').snapshots().map((snapshot) {
+      return snapshot.docs.map((doc) {
+        final data = doc.data();
+        return {
+          'id': doc.id,
+          'name':
+              data['name']?.toString() ??
+              data['email']?.toString() ??
+              'Unknown',
+          'photoUrl': data['photoUrl']?.toString() ?? '',
+        };
+      }).toList();
+    });
   }
 
   List<String> getChatRooms() {
