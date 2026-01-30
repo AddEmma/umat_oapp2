@@ -39,18 +39,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
     '2nd Year',
     '3rd Year',
     '4th Year',
-    'Graduate',
+    'Alumni',
   ];
 
   final List<String> _departments = [
-    'Computer Science & Engineering',
-    'Mechanical Engineering',
-    'Data Analytics',
-    'Geomatics Engineering',
-    'Geological Engineering',
-    'Environmental & Safety Engineering',
-    'Mathematics',
-    'Other',
+    'BSc Computer Science & Engineering',
+    'BSc Data Science and Analytics Engineering',
+    'BSc Electrical & Electronic Engineering',
+    'BSc Environmental & Safety Engineering',
+    'BSc Transport Planning & Management',
+    'BSc Mechanical Engineering',
+    'BSc Civil Engineering',
+    'BSc Geomatics Engineering',
+    'BSc Geological Engineering',
+    'BSc Mathematics',
+    'Diploma in Plant & Maintenance',
+    'Diploma in Electrical & Electronic Engineering'
+        'Other',
   ];
 
   // Use the same gradient as Login for consistency
