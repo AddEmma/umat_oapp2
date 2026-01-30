@@ -324,6 +324,62 @@ body {
     line-height: 1.7;
 }
 
+/* ===== Departments Section ===== */
+.departments {
+    padding: 60px 0;
+}
+
+.departments-title {
+    font-size: 2rem;
+    font-weight: 700;
+    text-align: center;
+    margin-bottom: 16px;
+    color: var(--text-primary);
+}
+
+.departments-subtitle {
+    text-align: center;
+    color: var(--text-muted);
+    margin-bottom: 40px;
+    font-size: 1rem;
+}
+
+.departments-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+}
+
+.department-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: var(--bg-card);
+    border: var(--glass-border);
+    backdrop-filter: blur(12px);
+    border-radius: 16px;
+    padding: 18px 22px;
+    transition: all 0.3s ease;
+}
+
+.department-card:hover {
+    background: var(--bg-card-hover);
+    border-color: rgba(255, 255, 255, 0.2);
+    transform: translateX(6px);
+}
+
+.dept-icon {
+    font-size: 1.5rem;
+    min-width: 40px;
+    text-align: center;
+}
+
+.dept-name {
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
 /* ===== Installation Guide ===== */
 .install-guide {
     padding: 80px 0 60px;

@@ -54,8 +54,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     'BSc Geological Engineering',
     'BSc Mathematics',
     'Diploma in Plant & Maintenance',
-    'Diploma in Electrical & Electronic Engineering'
-        'Other',
+    'Diploma in Electrical & Electronic Engineering',
+    'Other',
   ];
 
   // Use the same gradient as Login for consistency
