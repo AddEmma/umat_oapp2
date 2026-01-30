@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../models/member.dart';
 import 'package:provider/provider.dart';
@@ -1072,24 +1073,44 @@ class _MemberDetailScreenState extends State<MemberDetailScreen>
     }
   }
 
-  void _shareContact() {
+  void _shareContact() async {
     if (_isDisposed || !mounted) return;
 
     try {
-      final contactInfo =
-          '''
-${_currentMember.name}
+      final contactInfo = StringBuffer();
+      contactInfo.writeln(_currentMember.name);
+      contactInfo.writeln();
 
-${_currentMember.phone.isNotEmpty ? 'Phone: ${_currentMember.phone}' : ''}
-${_currentMember.department.isNotEmpty ? 'Department: ${_currentMember.department}' : ''}
-${_currentMember.year.isNotEmpty ? 'Year: ${_currentMember.year}' : ''}
-''';
+      if (_currentMember.phone.isNotEmpty) {
+        contactInfo.writeln('📞 Phone: ${_currentMember.phone}');
+      }
+      if (_currentMember.department.isNotEmpty) {
+        contactInfo.writeln('🏢 Department: ${_currentMember.department}');
+      }
+      if (_currentMember.year.isNotEmpty) {
+        contactInfo.writeln('📅 Year: ${_currentMember.year}');
+      }
+      if (_currentMember.ministryRole.isNotEmpty) {
+        contactInfo.writeln('⛪ Ministry Role: ${_currentMember.ministryRole}');
+      }
 
-      Clipboard.setData(ClipboardData(text: contactInfo.trim()));
-      _showSuccessSnackBar('Contact information copied to clipboard');
+      await SharePlus.instance.share(
+        ShareParams(
+          text: contactInfo.toString().trim(),
+          subject: 'Contact: ${_currentMember.name}',
+        ),
+      );
     } catch (e) {
       debugPrint('Error sharing contact: $e');
-      _showErrorSnackBar('Failed to copy contact information');
+      // Fallback to clipboard if share fails
+      try {
+        final contactInfo =
+            '${_currentMember.name}\nPhone: ${_currentMember.phone}';
+        Clipboard.setData(ClipboardData(text: contactInfo));
+        _showSuccessSnackBar('Contact copied to clipboard');
+      } catch (_) {
+        _showErrorSnackBar('Failed to share contact information');
+      }
     }
   }
 
@@ -1098,42 +1119,104 @@ ${_currentMember.year.isNotEmpty ? 'Year: ${_currentMember.year}' : ''}
 
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: const Row(
-            children: [
-              Icon(Icons.warning, color: Colors.red),
-              SizedBox(width: 12),
-              Text('Delete Member'),
-            ],
-          ),
-          content: Text(
-            'Are you sure you want to delete ${_currentMember.name}? This action cannot be undone.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-                if (mounted && !_isDisposed) {
-                  _showErrorSnackBar(
-                    'Delete functionality will be implemented soon',
-                  );
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
+        bool isDeleting = false;
+
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
               ),
-              child: const Text('Delete'),
-            ),
-          ],
+              title: const Row(
+                children: [
+                  Icon(Icons.warning, color: Colors.red),
+                  SizedBox(width: 12),
+                  Text('Delete Member'),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Are you sure you want to delete ${_currentMember.name}?',
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'This action cannot be undone.',
+                    style: TextStyle(
+                      color: Colors.red,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  if (isDeleting) ...[
+                    const SizedBox(height: 16),
+                    const Center(child: CircularProgressIndicator()),
+                  ],
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isDeleting
+                      ? null
+                      : () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: isDeleting
+                      ? null
+                      : () async {
+                          setDialogState(() => isDeleting = true);
+
+                          try {
+                            final databaseService =
+                                Provider.of<DatabaseService>(
+                                  context,
+                                  listen: false,
+                                );
+
+                            await databaseService.deleteMember(
+                              _currentMember.id,
+                            );
+
+                            if (!dialogContext.mounted) return;
+                            Navigator.of(dialogContext).pop();
+
+                            if (mounted && !_isDisposed) {
+                              _showSuccessSnackBar(
+                                '${_currentMember.name} has been deleted',
+                              );
+                              // Navigate back to members list
+                              Navigator.of(this.context).pop();
+                            }
+                          } catch (e) {
+                            debugPrint('Error deleting member: $e');
+                            setDialogState(() => isDeleting = false);
+                            if (mounted && !_isDisposed) {
+                              _showErrorSnackBar('Failed to delete member: $e');
+                            }
+                          }
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: isDeleting
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text('Delete'),
+                ),
+              ],
+            );
+          },
         );
       },
     );

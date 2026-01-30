@@ -267,12 +267,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                             const SizedBox(height: 12),
 
                             if (authService.user == null)
-                              const Padding(
-                                padding: EdgeInsets.all(32.0),
-                                child: Center(
-                                  child: CircularProgressIndicator(),
-                                ),
-                              )
+                              const SizedBox.shrink() // User is logging out, show nothing
                             else
                               StreamBuilder<List<Member>>(
                                 stream: Provider.of<DatabaseService>(
