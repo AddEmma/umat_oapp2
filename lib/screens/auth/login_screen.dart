@@ -28,7 +28,7 @@ class _LoginScreenState extends State<LoginScreen>
       CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
     );
     _slideAnimation =
-        Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(
+        Tween<Offset>(begin: const Offset(0, 0.05), end: Offset.zero).animate(
           CurvedAnimation(
             parent: _animationController,
             curve: Curves.easeOutCubic,
@@ -45,30 +45,27 @@ class _LoginScreenState extends State<LoginScreen>
 
   @override
   Widget build(BuildContext context) {
-    // Subtle, professional gradient
-    final gradientColors = [
-      const Color(0xFFF5F7FA), // Light greyish blue
-      const Color(0xFFC3CFE2), // Softer blue-grey
-    ];
-
     return Scaffold(
       body: Container(
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: gradientColors,
+            colors: [
+              Color(0xFFF8FAFC), // Very light blue-grey
+              Color(0xFFE8EEF5), // Soft blue-grey
+            ],
           ),
         ),
         child: SafeArea(
           child: Center(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(
-                horizontal: 24.0,
+                horizontal: 28.0,
                 vertical: 24.0,
               ),
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 450),
+                constraints: const BoxConstraints(maxWidth: 400),
                 child: Consumer<AuthService>(
                   builder: (context, authService, child) {
                     return FadeTransition(
@@ -80,19 +77,11 @@ class _LoginScreenState extends State<LoginScreen>
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             const _LoginHeader(),
+                            const SizedBox(height: 40),
+                            _LoginForm(authService: authService),
                             const SizedBox(height: 32),
-                            Card(
-                              elevation: 8,
-                              shadowColor: Colors.black.withOpacity(0.1),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(24),
-                              ),
-                              child: Padding(
-                                padding: const EdgeInsets.all(32.0),
-                                child: _LoginForm(authService: authService),
-                              ),
-                            ),
-                            const SizedBox(height: 24),
+                            const _SocialLoginSection(),
+                            const SizedBox(height: 32),
                             const _LoginFooter(),
                           ],
                         ),
@@ -116,41 +105,50 @@ class _LoginHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
+        // Logo with white ring effect
         Container(
-          padding: const EdgeInsets.all(4),
+          padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            border: Border.all(color: Colors.white, width: 4),
+            color: Colors.white,
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 16,
+                color: Colors.black.withOpacity(0.08),
+                blurRadius: 20,
                 offset: const Offset(0, 8),
+                spreadRadius: 2,
               ),
             ],
           ),
-          child: CircleAvatar(
-            radius: 40,
-            backgroundImage: const AssetImage('assets/images/image.jpg.jpg'),
-            backgroundColor: Colors.transparent,
+          child: Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.grey.withOpacity(0.1), width: 1),
+            ),
+            child: const CircleAvatar(
+              radius: 45,
+              backgroundImage: AssetImage('assets/images/image.jpg.jpg'),
+              backgroundColor: Colors.transparent,
+            ),
           ),
         ),
-        const SizedBox(height: 24),
-        Text(
+        const SizedBox(height: 32),
+        const Text(
           'Welcome Back',
           style: TextStyle(
-            fontSize: 28,
+            fontSize: 32,
             fontWeight: FontWeight.bold,
-            color: Colors.grey[800],
+            color: Color(0xFF1E293B),
             letterSpacing: -0.5,
           ),
         ),
         const SizedBox(height: 8),
         Text(
-          'Church of Christ - SRID Campus Ministry',
+          'Church of Christ - SRID Campus',
           style: TextStyle(
             fontSize: 16,
-            color: Colors.grey[600],
+            color: Colors.grey[500],
             fontWeight: FontWeight.w400,
           ),
         ),
@@ -207,7 +205,7 @@ class _LoginFormState extends State<_LoginForm> {
         ),
         backgroundColor: Colors.green[600],
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         duration: const Duration(seconds: 2),
       ),
     );
@@ -221,12 +219,14 @@ class _LoginFormState extends State<_LoginForm> {
             children: [
               Icon(Icons.warning_amber_rounded, color: Colors.white),
               SizedBox(width: 8),
-              Text('Please enter your email address first'),
+              Expanded(child: Text('Please enter your email address first')),
             ],
           ),
           backgroundColor: Colors.orange[600],
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
         ),
       );
       return;
@@ -250,7 +250,9 @@ class _LoginFormState extends State<_LoginForm> {
           ),
           backgroundColor: Colors.green[600],
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
         ),
       );
     }
@@ -264,20 +266,18 @@ class _LoginFormState extends State<_LoginForm> {
         children: [
           if (widget.authService.lastError != null) ...[
             _buildErrorMessage(),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
           ],
           _buildTextField(
             controller: _emailController,
             label: 'Email Address',
-            icon: Icons.email_outlined,
             keyboardType: TextInputType.emailAddress,
             validator: Validators.email,
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
           _buildTextField(
             controller: _passwordController,
             label: 'Password',
-            icon: Icons.lock_outline,
             isPassword: true,
             isObscure: _obscurePassword,
             onToggleVisibility: () {
@@ -292,7 +292,7 @@ class _LoginFormState extends State<_LoginForm> {
             child: TextButton(
               onPressed: widget.authService.isLoading ? null : _forgotPassword,
               style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
                 minimumSize: Size.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
@@ -306,18 +306,18 @@ class _LoginFormState extends State<_LoginForm> {
               ),
             ),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 24),
           SizedBox(
             width: double.infinity,
-            height: 52,
+            height: 56,
             child: ElevatedButton(
               onPressed: widget.authService.isLoading ? null : _signIn,
               style: ElevatedButton.styleFrom(
-                backgroundColor: Theme.of(context).primaryColor,
+                backgroundColor: const Color(0xFF3B82F6), // Blue
                 foregroundColor: Colors.white,
                 elevation: 0,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(28),
                 ),
               ),
               child: widget.authService.isLoading
@@ -329,12 +329,19 @@ class _LoginFormState extends State<_LoginForm> {
                         strokeWidth: 2.5,
                       ),
                     )
-                  : const Text(
-                      'Sign In',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
+                  : const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          'Sign In',
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        SizedBox(width: 8),
+                        Icon(Icons.arrow_forward, size: 20),
+                      ],
                     ),
             ),
           ),
@@ -345,11 +352,11 @@ class _LoginFormState extends State<_LoginForm> {
 
   Widget _buildErrorMessage() {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.red[50],
         border: Border.all(color: Colors.red[100]!),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
         children: [
@@ -380,7 +387,6 @@ class _LoginFormState extends State<_LoginForm> {
   Widget _buildTextField({
     required TextEditingController controller,
     required String label,
-    required IconData icon,
     TextInputType? keyboardType,
     bool isPassword = false,
     bool isObscure = false,
@@ -388,17 +394,19 @@ class _LoginFormState extends State<_LoginForm> {
     ValueChanged<String>? onSubmitted,
     String? Function(String?)? validator,
   }) {
-    final primaryColor = Theme.of(context).primaryColor;
     return TextFormField(
       controller: controller,
       obscureText: isObscure,
       keyboardType: keyboardType,
       textInputAction: isPassword ? TextInputAction.done : TextInputAction.next,
       onFieldSubmitted: onSubmitted,
+      style: const TextStyle(fontSize: 16, color: Color(0xFF1E293B)),
       decoration: InputDecoration(
-        labelText: label,
-        labelStyle: TextStyle(color: Colors.grey[600]),
-        prefixIcon: Icon(icon, color: Colors.grey[400], size: 22),
+        hintText: label,
+        hintStyle: TextStyle(
+          color: Colors.grey[400],
+          fontWeight: FontWeight.w400,
+        ),
         suffixIcon: isPassword
             ? IconButton(
                 icon: Icon(
@@ -406,37 +414,152 @@ class _LoginFormState extends State<_LoginForm> {
                       ? Icons.visibility_outlined
                       : Icons.visibility_off_outlined,
                   color: Colors.grey[400],
+                  size: 22,
                 ),
                 onPressed: onToggleVisibility,
               )
             : null,
         filled: true,
-        fillColor: Colors.grey[50],
+        fillColor: const Color(0xFFF1F5F9),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(28),
           borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey[200]!),
+          borderRadius: BorderRadius.circular(28),
+          borderSide: BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(28),
           borderSide: BorderSide(
-            color: primaryColor.withOpacity(0.5),
-            width: 1.5,
+            color: const Color(0xFF3B82F6).withOpacity(0.4),
+            width: 2,
           ),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(28),
           borderSide: const BorderSide(color: Colors.red, width: 1),
         ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(28),
+          borderSide: const BorderSide(color: Colors.red, width: 1.5),
+        ),
         contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 16,
+          horizontal: 24,
+          vertical: 18,
         ),
       ),
       validator: validator,
+    );
+  }
+}
+
+class _SocialLoginSection extends StatelessWidget {
+  const _SocialLoginSection();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        // Divider with "OR CONTINUE WITH"
+        Row(
+          children: [
+            Expanded(child: Container(height: 1, color: Colors.grey[300])),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                'OR CONTINUE WITH',
+                style: TextStyle(
+                  color: Colors.grey[400],
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ),
+            Expanded(child: Container(height: 1, color: Colors.grey[300])),
+          ],
+        ),
+        const SizedBox(height: 24),
+        // Social buttons
+        Row(
+          children: [
+            Expanded(
+              child: _SocialButton(
+                icon: Image.asset(
+                  'assets/images/google_logo.png',
+                  width: 24,
+                  height: 24,
+                  errorBuilder: (context, error, stackTrace) => Icon(
+                    Icons.g_mobiledata,
+                    size: 28,
+                    color: Colors.grey[600],
+                  ),
+                ),
+                onTap: () {
+                  // Google sign in - coming soon
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: const Text('Google Sign In coming soon'),
+                      backgroundColor: Colors.grey[700],
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: _SocialButton(
+                icon: Icon(Icons.apple, size: 28, color: Colors.grey[800]),
+                onTap: () {
+                  // Handle Apple sign in (if available)
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: const Text('Apple Sign In coming soon'),
+                      backgroundColor: Colors.grey[700],
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _SocialButton extends StatelessWidget {
+  final Widget icon;
+  final VoidCallback onTap;
+
+  const _SocialButton({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          height: 56,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.grey[200]!, width: 1.5),
+          ),
+          child: Center(child: icon),
+        ),
+      ),
     );
   }
 }
@@ -450,8 +573,8 @@ class _LoginFooter extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Text(
-          "Don't have an account? ",
-          style: TextStyle(color: Colors.grey[600], fontSize: 14),
+          "Don't have an account?  ",
+          style: TextStyle(color: Colors.grey[500], fontSize: 15),
         ),
         GestureDetector(
           onTap: () {
@@ -462,7 +585,7 @@ class _LoginFooter extends StatelessWidget {
             style: TextStyle(
               color: Theme.of(context).primaryColor,
               fontWeight: FontWeight.bold,
-              fontSize: 14,
+              fontSize: 15,
             ),
           ),
         ),
