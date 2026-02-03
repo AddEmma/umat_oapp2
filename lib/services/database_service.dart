@@ -6,11 +6,90 @@ import 'dart:io';
 import '../models/member.dart';
 import '../models/meeting.dart';
 import '../models/attendance_record.dart';
+import '../models/church.dart';
 
 class DatabaseService extends ChangeNotifier {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  String? _churchId;
+  String? get churchId => _churchId;
+
+  void setChurchId(String? id) {
+    _churchId = id;
+    notifyListeners();
+  }
+
+  // Helper to get collection reference based on churchId
+  CollectionReference _getCollection(String collectionName) {
+    if (_churchId != null && _churchId!.isNotEmpty) {
+      return _db
+          .collection('churches')
+          .doc(_churchId)
+          .collection(collectionName);
+    }
+    // Fallback for legacy/root level data (or if no church selected)
+    return _db.collection(collectionName);
+  }
+
+  // Church Management
+  Future<void> createChurch(Church church) async {
+    await _db.collection('churches').doc(church.id).set(church.toMap());
+    // Also set the current user as admin of this church immediately
+    await _db.collection('users').doc(church.adminId).update({
+      'churchId': church.id,
+      'role': 'admin',
+    });
+    setChurchId(church.id); // Update local state
+  }
+
+  Future<Church?> getChurch(String id) async {
+    DocumentSnapshot doc = await _db.collection('churches').doc(id).get();
+    if (doc.exists && doc.data() != null) {
+      return Church.fromMap(doc.data() as Map<String, dynamic>, doc.id);
+    }
+    return null;
+  }
+
+  Future<Church?> getChurchByCode(String code) async {
+    QuerySnapshot snapshot = await _db
+        .collection('churches')
+        .where('churchCode', isEqualTo: code)
+        .limit(1)
+        .get();
+
+    if (snapshot.docs.isNotEmpty) {
+      var doc = snapshot.docs.first;
+      return Church.fromMap(doc.data() as Map<String, dynamic>, doc.id);
+    }
+    return null;
+  }
+
+  Future<void> joinChurch(String userId, String churchId) async {
+    await _db.collection('users').doc(userId).update({
+      'churchId': churchId,
+      'role': 'viewer', // Default role for joiners
+    });
+    setChurchId(churchId);
+  }
+
+  String generateChurchCode([String? churchName]) {
+    String prefix = 'CHUR';
+    if (churchName != null) {
+      String cleanName = churchName
+          .replaceAll(RegExp(r'[^a-zA-Z]'), '')
+          .toUpperCase();
+      prefix = cleanName.length >= 4
+          ? cleanName.substring(0, 4)
+          : cleanName.padRight(4, 'X');
+    }
+
+    // Generate 4 random digits
+    String pin = (1000 + DateTime.now().microsecondsSinceEpoch % 9000)
+        .toString();
+    return '$prefix$pin';
+  }
 
   // Users & Roles
   Future<void> createUserProfile(
@@ -20,6 +99,7 @@ class DatabaseService extends ChangeNotifier {
     String role, {
     String? phoneNumber,
     String? photoUrl,
+    String? churchId,
   }) async {
     await _db.collection('users').doc(uid).set({
       'email': email,
@@ -27,6 +107,7 @@ class DatabaseService extends ChangeNotifier {
       'role': role,
       'phoneNumber': phoneNumber,
       'photoUrl': photoUrl,
+      'churchId': churchId,
       'createdAt': FieldValue.serverTimestamp(),
     });
   }
@@ -43,7 +124,13 @@ class DatabaseService extends ChangeNotifier {
         throw Exception('Source file does not exist: ${imageFile.path}');
       }
 
-      final ref = _storage.ref().child('user_profiles').child('$uid.jpg');
+      // Use church ID in path if available to organize storage
+      String path = 'user_profiles';
+      if (_churchId != null) {
+        path = 'churches/$_churchId/user_profiles';
+      }
+
+      final ref = _storage.ref().child(path).child('$uid.jpg');
       print('DEBUG: Target Storage path: ${ref.fullPath}');
 
       await ref.putFile(imageFile);
@@ -66,30 +153,42 @@ class DatabaseService extends ChangeNotifier {
     return null;
   }
 
+  Future<String?> getUserChurchId(String uid) async {
+    DocumentSnapshot doc = await _db.collection('users').doc(uid).get();
+    if (doc.exists && doc.data() != null) {
+      return (doc.data() as Map<String, dynamic>)['churchId'] as String?;
+    }
+    return null;
+  }
+
   // Members
   Stream<List<Member>> getMembers() {
-    return _db.collection('members').snapshots().map((snapshot) {
+    return _getCollection('members').snapshots().map((snapshot) {
       return snapshot.docs
-          .map((doc) => Member.fromMap(doc.data(), doc.id))
+          .map(
+            (doc) => Member.fromMap(doc.data() as Map<String, dynamic>, doc.id),
+          )
           .toList();
     });
   }
 
   Stream<List<Member>> getRecentMembersStream({int limit = 5}) {
-    return _db
-        .collection('members')
+    return _getCollection('members')
         .orderBy('dateAdded', descending: true)
         .limit(limit)
         .snapshots()
         .map((snapshot) {
           return snapshot.docs
-              .map((doc) => Member.fromMap(doc.data(), doc.id))
+              .map(
+                (doc) =>
+                    Member.fromMap(doc.data() as Map<String, dynamic>, doc.id),
+              )
               .toList();
         });
   }
 
   Future<void> addMember(Member member, {File? imageFile}) async {
-    final docRef = _db.collection('members').doc();
+    final docRef = _getCollection('members').doc();
     String? photoUrl = member.photoUrl;
 
     if (imageFile != null) {
@@ -107,30 +206,31 @@ class DatabaseService extends ChangeNotifier {
   }
 
   Future<void> updateMember(Member member) async {
-    await _db.collection('members').doc(member.id).update(member.toMap());
+    await _getCollection('members').doc(member.id).update(member.toMap());
     notifyListeners();
   }
 
   Future<void> deleteMember(String memberId) async {
-    await _db.collection('members').doc(memberId).delete();
+    await _getCollection('members').doc(memberId).delete();
     notifyListeners();
   }
 
   // Meetings
   Stream<List<Meeting>> getMeetings() {
-    return _db
-        .collection('meetings')
-        .orderBy('dateTime', descending: false)
-        .snapshots()
-        .map((snapshot) {
-          return snapshot.docs
-              .map((doc) => Meeting.fromMap(doc.data(), doc.id))
-              .toList();
-        });
+    return _getCollection(
+      'meetings',
+    ).orderBy('dateTime', descending: false).snapshots().map((snapshot) {
+      return snapshot.docs
+          .map(
+            (doc) =>
+                Meeting.fromMap(doc.data() as Map<String, dynamic>, doc.id),
+          )
+          .toList();
+    });
   }
 
   Future<void> addMeeting(Meeting meeting) async {
-    await _db.collection('meetings').add(meeting.toMap());
+    await _getCollection('meetings').add(meeting.toMap());
     notifyListeners();
   }
 
@@ -139,9 +239,9 @@ class DatabaseService extends ChangeNotifier {
     String userId,
     String response,
   ) async {
-    await _db.collection('meetings').doc(meetingId).update({
-      'rsvp.$userId': response,
-    });
+    await _getCollection(
+      'meetings',
+    ).doc(meetingId).update({'rsvp.$userId': response});
     notifyListeners();
   }
 
@@ -156,7 +256,7 @@ class DatabaseService extends ChangeNotifier {
     recordData['dateTimestamp'] = Timestamp.fromDate(record.date);
     recordData['dateString'] = record.date.toIso8601String().split('T')[0];
 
-    await _db.collection('attendance_records').doc(docId).set(recordData);
+    await _getCollection('attendance_records').doc(docId).set(recordData);
     notifyListeners();
   }
 
@@ -166,8 +266,7 @@ class DatabaseService extends ChangeNotifier {
   ) async {
     String dateStr = date.toIso8601String().split('T')[0];
 
-    QuerySnapshot snapshot = await _db
-        .collection('attendance_records')
+    QuerySnapshot snapshot = await _getCollection('attendance_records')
         .where('dateString', isEqualTo: dateStr)
         .where('eventType', isEqualTo: eventType)
         .get();
@@ -192,7 +291,7 @@ class DatabaseService extends ChangeNotifier {
     DateTime? startDate,
     DateTime? endDate,
   }) {
-    Query query = _db.collection('attendance_records');
+    Query query = _getCollection('attendance_records');
 
     // Primary filter - use the most selective filter first
     if (memberId != null) {
@@ -294,42 +393,40 @@ class DatabaseService extends ChangeNotifier {
 
   // Stream of session summaries (unique Date + Event Type)
   Stream<List<Map<String, dynamic>>> getAttendanceSessions() {
-    return _db
-        .collection('attendance_records')
-        .orderBy('dateTimestamp', descending: true)
-        .snapshots()
-        .map((snapshot) {
-          final Map<String, Map<String, dynamic>> sessions = {};
+    return _getCollection(
+      'attendance_records',
+    ).orderBy('dateTimestamp', descending: true).snapshots().map((snapshot) {
+      final Map<String, Map<String, dynamic>> sessions = {};
 
-          for (var doc in snapshot.docs) {
-            final data = doc.data() as Map<String, dynamic>;
-            final dateStr = data['dateString'] ?? '';
-            final eventType = data['eventType'] ?? '';
-            final key = '${dateStr}_$eventType';
+      for (var doc in snapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        final dateStr = data['dateString'] ?? '';
+        final eventType = data['eventType'] ?? '';
+        final key = '${dateStr}_$eventType';
 
-            if (!sessions.containsKey(key)) {
-              sessions[key] = {
-                'date': (data['dateTimestamp'] as Timestamp).toDate(),
-                'dateString': dateStr,
-                'eventType': eventType,
-                'presentCount': 0,
-                'absentCount': 0,
-                'totalMembers': 0,
-              };
-            }
+        if (!sessions.containsKey(key)) {
+          sessions[key] = {
+            'date': (data['dateTimestamp'] as Timestamp).toDate(),
+            'dateString': dateStr,
+            'eventType': eventType,
+            'presentCount': 0,
+            'absentCount': 0,
+            'totalMembers': 0,
+          };
+        }
 
-            sessions[key]!['totalMembers']++;
-            if (data['isPresent'] == true) {
-              sessions[key]!['presentCount']++;
-            } else {
-              sessions[key]!['absentCount']++;
-            }
-          }
+        sessions[key]!['totalMembers']++;
+        if (data['isPresent'] == true) {
+          sessions[key]!['presentCount']++;
+        } else {
+          sessions[key]!['absentCount']++;
+        }
+      }
 
-          return sessions.values.toList()..sort(
-            (a, b) => (b['date'] as DateTime).compareTo(a['date'] as DateTime),
-          );
-        });
+      return sessions.values.toList()..sort(
+        (a, b) => (b['date'] as DateTime).compareTo(a['date'] as DateTime),
+      );
+    });
   }
 
   // Alternative method for event-specific queries (if you want to create a simple index)
@@ -338,9 +435,9 @@ class DatabaseService extends ChangeNotifier {
     DateTime? startDate,
     DateTime? endDate,
   }) {
-    Query query = _db
-        .collection('attendance_records')
-        .where('eventType', isEqualTo: eventType);
+    Query query = _getCollection(
+      'attendance_records',
+    ).where('eventType', isEqualTo: eventType);
 
     // Add date range if both dates are provided
     if (startDate != null && endDate != null) {
@@ -386,8 +483,7 @@ class DatabaseService extends ChangeNotifier {
   Future<List<AttendanceRecord>> getAttendanceRecordsForMember(
     String memberId,
   ) async {
-    QuerySnapshot snapshot = await _db
-        .collection('attendance_records')
+    QuerySnapshot snapshot = await _getCollection('attendance_records')
         .where('memberId', isEqualTo: memberId)
         .orderBy('dateTimestamp', descending: true)
         .get();
@@ -407,7 +503,7 @@ class DatabaseService extends ChangeNotifier {
     DateTime? startDate,
     DateTime? endDate,
   }) async {
-    Query query = _db.collection('attendance_records');
+    Query query = _getCollection('attendance_records');
 
     // Apply date range filters
     if (startDate != null && endDate != null) {
@@ -478,7 +574,7 @@ class DatabaseService extends ChangeNotifier {
   }
 
   Future<void> deleteAttendanceRecord(String recordId) async {
-    await _db.collection('attendance_records').doc(recordId).delete();
+    await _getCollection('attendance_records').doc(recordId).delete();
     notifyListeners();
   }
 
@@ -487,7 +583,7 @@ class DatabaseService extends ChangeNotifier {
     DateTime? endDate,
   }) async {
     // Get all members
-    QuerySnapshot memberSnapshot = await _db.collection('members').get();
+    QuerySnapshot memberSnapshot = await _getCollection('members').get();
     List<Member> members = memberSnapshot.docs
         .map(
           (doc) => Member.fromMap(doc.data() as Map<String, dynamic>, doc.id),
@@ -495,7 +591,7 @@ class DatabaseService extends ChangeNotifier {
         .toList();
 
     // Get attendance records with date filtering
-    Query attendanceQuery = _db.collection('attendance_records');
+    Query attendanceQuery = _getCollection('attendance_records');
 
     if (startDate != null && endDate != null) {
       attendanceQuery = attendanceQuery
@@ -563,7 +659,7 @@ class DatabaseService extends ChangeNotifier {
 
   // Migration method to update existing records (run once)
   Future<void> migrateAttendanceRecords() async {
-    QuerySnapshot snapshot = await _db.collection('attendance_records').get();
+    QuerySnapshot snapshot = await _getCollection('attendance_records').get();
 
     WriteBatch batch = _db.batch();
     int batchCount = 0;
@@ -607,7 +703,7 @@ class DatabaseService extends ChangeNotifier {
     String? senderId,
     String? senderPhotoUrl,
   }) async {
-    await _db.collection('announcements').add({
+    await _getCollection('announcements').add({
       'title': title,
       'body': body,
       'senderName': senderName,
@@ -618,19 +714,16 @@ class DatabaseService extends ChangeNotifier {
   }
 
   Stream<QuerySnapshot> getAnnouncements() {
-    return _db
-        .collection('announcements')
-        .orderBy('timestamp', descending: true)
-        .snapshots();
+    return _getCollection(
+      'announcements',
+    ).orderBy('timestamp', descending: true).snapshots();
   }
 
   // Get stream of latest announcement for unread check
   Stream<QuerySnapshot> getLatestAnnouncementStream() {
-    return _db
-        .collection('announcements')
-        .orderBy('timestamp', descending: true)
-        .limit(1)
-        .snapshots();
+    return _getCollection(
+      'announcements',
+    ).orderBy('timestamp', descending: true).limit(1).snapshots();
   }
 
   // Update user's last read time
@@ -655,9 +748,9 @@ class DatabaseService extends ChangeNotifier {
     for (var record in records) {
       DocumentReference docRef;
       if (record.id != null) {
-        docRef = _db.collection('attendance_records').doc(record.id);
+        docRef = _getCollection('attendance_records').doc(record.id);
       } else {
-        docRef = _db.collection('attendance_records').doc();
+        docRef = _getCollection('attendance_records').doc();
       }
 
       // Ensure ID is set in the record if it was generated

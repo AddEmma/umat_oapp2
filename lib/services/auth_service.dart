@@ -42,6 +42,8 @@ class AuthService extends ChangeNotifier {
         _fetchUserRole(user.uid);
       } else {
         _userRole = null;
+        _churchId = null;
+        _isLoadingRole = false; // Ensure loading state is cleared
         _hasLoggedInThisSession = false;
       }
       notifyListeners();
@@ -151,20 +153,32 @@ class AuthService extends ChangeNotifier {
     }
   }
 
-  // User Role
+  // User Role & Church
   String? _userRole;
   String? get userRole => _userRole;
+
+  String? _churchId;
+  String? get churchId => _churchId;
+
+  bool _isLoadingRole = false;
+  bool get isLoadingRole => _isLoadingRole;
 
   bool get canEdit => _userRole == 'admin' || _userRole == 'editor';
   bool get isAdmin => _userRole == 'admin';
   bool get isEditor => _userRole == 'editor';
 
   Future<void> _fetchUserRole(String uid) async {
+    _isLoadingRole = true;
+    notifyListeners();
+
     try {
       _userRole = await _databaseService.getUserRole(uid);
-      notifyListeners();
+      _churchId = await _databaseService.getUserChurchId(uid);
     } catch (e) {
-      print('Error fetching user role: $e');
+      print('Error fetching user role/church: $e');
+    } finally {
+      _isLoadingRole = false;
+      notifyListeners();
     }
   }
 

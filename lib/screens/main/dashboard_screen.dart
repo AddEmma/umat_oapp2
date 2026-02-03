@@ -13,6 +13,7 @@ import '../members/members_screen.dart';
 import '../attendance/attendance_screen.dart';
 import '../attendance/attendance_sessions_screen.dart';
 import '../messaging/announcement_screen.dart';
+import '../church_setup_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -261,6 +262,80 @@ class _DashboardScreenState extends State<DashboardScreen>
                             // Welcome Section
                             _buildWelcomeSection(authService),
                             const SizedBox(height: 24),
+
+                            // MIGRATION BANNER (For Legacy Admins)
+                            if (authService.isAdmin &&
+                                authService.churchId == null) ...[
+                              Container(
+                                width: double.infinity,
+                                margin: const EdgeInsets.only(bottom: 24),
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      Colors.indigo,
+                                      Colors.indigoAccent,
+                                    ],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                  borderRadius: BorderRadius.circular(16),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.indigo.withOpacity(0.3),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Icon(
+                                          Icons.upgrade_rounded,
+                                          color: Colors.white,
+                                          size: 28,
+                                        ),
+                                        SizedBox(width: 12),
+                                        Text(
+                                          'Upgrade Available',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 18,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 8),
+                                    const Text(
+                                      'Create a dedicated space for your church to enable multi-tenancy and better data organization.',
+                                      style: TextStyle(color: Colors.white70),
+                                    ),
+                                    const SizedBox(height: 16),
+                                    ElevatedButton(
+                                      onPressed: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) =>
+                                                const ChurchSetupScreen(),
+                                          ),
+                                        );
+                                      },
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.white,
+                                        foregroundColor: Colors.indigo,
+                                        elevation: 0,
+                                      ),
+                                      child: const Text('Setup Church Space'),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
 
                             // Stats Grid Title
                             _buildSectionHeader('Ministry Overview'),

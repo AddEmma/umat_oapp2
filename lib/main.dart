@@ -13,6 +13,8 @@ import 'screens/main/dashboard_screen.dart';
 import 'services/auth_service.dart';
 import 'services/database_service.dart';
 import 'services/chat_service.dart';
+import 'models/member.dart';
+import 'screens/church_selection_screen.dart';
 import 'services/notification_service.dart';
 
 Future<void> main() async {
@@ -82,8 +84,8 @@ class _AppWrapperState extends State<AppWrapper> {
     final authService = Provider.of<AuthService>(context, listen: false);
     await authService.waitForInitialization();
 
-    // Show splash for a longer duration (at least 6 seconds) for better UX
-    await Future.delayed(const Duration(seconds: 6));
+    // Show splash for a shorter duration for better UX
+    await Future.delayed(const Duration(seconds: 2));
 
     if (mounted) {
       setState(() {
@@ -100,15 +102,37 @@ class _AppWrapperState extends State<AppWrapper> {
 
     return Consumer<AuthService>(
       builder: (context, authService, _) {
-        // Show loading while auth state is being determined
-        if (!authService.isInitialized) {
+        // Show loading while auth state or role/church data is being determined
+        if (!authService.isInitialized || authService.isLoadingRole) {
           return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
+            body: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text("Loading Profile..."),
+                ],
+              ),
+            ),
           );
         }
 
-        // Simple authentication check - if user exists, show main app
+        // SYNC: Ensure DatabaseService has the correct churchId
+        final dbService = Provider.of<DatabaseService>(context, listen: false);
+        // Only sync if we are fully loaded to avoid incorrect null propagation
+        if (dbService.churchId != authService.churchId) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            dbService.setChurchId(authService.churchId);
+          });
+        }
+
+        // Route to appropriate screen
         if (authService.user != null) {
+          // If user is authenticated but hasn't selected/joined a church yet
+          if (authService.churchId == null) {
+            return const ChurchSelectionScreen();
+          }
           return const MainNavigation();
         } else {
           return const LoginScreen();
