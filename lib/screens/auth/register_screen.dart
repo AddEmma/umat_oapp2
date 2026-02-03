@@ -21,6 +21,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _yearController = TextEditingController();
   final _departmentController = TextEditingController();
   final _ministryRoleController = TextEditingController();
+  final _localCongregationController = TextEditingController();
+  final _locationController = TextEditingController();
+  final _hostelController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _adminCodeController = TextEditingController();
@@ -72,6 +75,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _yearController.dispose();
     _departmentController.dispose();
     _ministryRoleController.dispose();
+    _localCongregationController.dispose();
+    _locationController.dispose();
+    _hostelController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     _adminCodeController.dispose();
@@ -123,6 +129,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
           department: _selectedDepartment,
           isBaptized: _isBaptized,
           ministryRole: _ministryRoleController.text.trim(),
+          localCongregation: _localCongregationController.text.trim(),
+          location: _locationController.text.trim(),
+          hostel: _hostelController.text.trim(),
           profileImage: _profileImage,
         );
 
@@ -337,7 +346,33 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         icon: Icons.work_outline,
                       ),
                       const SizedBox(height: 16),
+                      _buildTextField(
+                        controller: _localCongregationController,
+                        hint: 'Local Congregation',
+                        icon: Icons.church_outlined,
+                      ),
+                      const SizedBox(height: 16),
                       _buildBaptizedToggle(primaryColor),
+                      const SizedBox(height: 28),
+
+                      // Residence & Origin Section
+                      _buildSectionHeader(
+                        'RESIDENCE & ORIGIN',
+                        Icons.home_work_outlined,
+                        primaryColor,
+                      ),
+                      const SizedBox(height: 16),
+                      _buildTextField(
+                        controller: _locationController,
+                        hint: 'Location (Where are you from?)',
+                        icon: Icons.location_on_outlined,
+                      ),
+                      const SizedBox(height: 16),
+                      _buildTextField(
+                        controller: _hostelController,
+                        hint: 'Hostel',
+                        icon: Icons.apartment_outlined,
+                      ),
                       const SizedBox(height: 28),
 
                       // Security Section

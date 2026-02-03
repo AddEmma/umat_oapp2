@@ -5,6 +5,9 @@ class Member {
   final String phone;
   final String year;
   final String department;
+  final String localCongregation;
+  final String location;
+  final String hostel;
   final bool isBaptized;
   final String ministryRole;
   final String? photoUrl;
@@ -18,6 +21,9 @@ class Member {
     required this.phone,
     required this.year,
     required this.department,
+    this.localCongregation = '',
+    this.location = '',
+    this.hostel = '',
     required this.isBaptized,
     required this.ministryRole,
     this.photoUrl,
@@ -33,6 +39,9 @@ class Member {
       phone: map['phone'] ?? '',
       year: map['year'] ?? '',
       department: map['department'] ?? '',
+      localCongregation: map['localCongregation'] ?? '',
+      location: map['location'] ?? '',
+      hostel: map['hostel'] ?? '',
       isBaptized: map['isBaptized'] ?? false,
       ministryRole: map['ministryRole'] ?? '',
       photoUrl: (map['photoUrl'] as String?)?.isEmpty == true
@@ -54,6 +63,9 @@ class Member {
       'phone': phone,
       'year': year,
       'department': department,
+      'localCongregation': localCongregation,
+      'location': location,
+      'hostel': hostel,
       'isBaptized': isBaptized,
       'ministryRole': ministryRole,
       'photoUrl': photoUrl,
@@ -70,6 +82,9 @@ class Member {
     String? phone,
     String? year,
     String? department,
+    String? localCongregation,
+    String? location,
+    String? hostel,
     bool? isBaptized,
     String? ministryRole,
     String? photoUrl,
@@ -83,6 +98,9 @@ class Member {
       phone: phone ?? this.phone,
       year: year ?? this.year,
       department: department ?? this.department,
+      localCongregation: localCongregation ?? this.localCongregation,
+      location: location ?? this.location,
+      hostel: hostel ?? this.hostel,
       isBaptized: isBaptized ?? this.isBaptized,
       ministryRole: ministryRole ?? this.ministryRole,
       photoUrl: photoUrl ?? this.photoUrl,
@@ -93,7 +111,7 @@ class Member {
 
   @override
   String toString() {
-    return 'Member{id: $id, name: $name, phone: $phone, year: $year, department: $department, isBaptized: $isBaptized, ministryRole: $ministryRole, dateAdded: $dateAdded}';
+    return 'Member{id: $id, name: $name, phone: $phone, year: $year, department: $department, localCongregation: $localCongregation, location: $location, hostel: $hostel, isBaptized: $isBaptized, ministryRole: $ministryRole, dateAdded: $dateAdded}';
   }
 
   @override
@@ -107,6 +125,9 @@ class Member {
         other.phone == phone &&
         other.year == year &&
         other.department == department &&
+        other.localCongregation == localCongregation &&
+        other.location == location &&
+        other.hostel == hostel &&
         other.isBaptized == isBaptized &&
         other.ministryRole == ministryRole &&
         other.dateAdded == dateAdded;
@@ -120,6 +141,9 @@ class Member {
         phone.hashCode ^
         year.hashCode ^
         department.hashCode ^
+        localCongregation.hashCode ^
+        location.hashCode ^
+        hostel.hashCode ^
         isBaptized.hashCode ^
         ministryRole.hashCode ^
         dateAdded.hashCode;

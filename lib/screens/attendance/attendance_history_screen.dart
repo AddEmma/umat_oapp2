@@ -31,8 +31,8 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
     'Sunday Service',
     'Bible Study',
     'Prayer Meeting',
-    'Youth Meeting',
-    'Special Event',
+    'Songs Practice',
+    
   ];
 
   final List<String> _timeFrames = [
@@ -686,7 +686,7 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
         return Colors.green;
       case 'Prayer Meeting':
         return Colors.purple;
-      case 'Youth Meeting':
+      case 'Songs Practice':
         return Colors.orange;
       case 'Special Event':
         return Colors.red;

@@ -26,6 +26,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   DateTime _selectedDate = DateTime.now();
   Map<String, AttendanceRecord> _attendanceRecords = {};
   bool _isLoading = false;
+  bool _showAbsenteesOnly = false;
 
   // Search and Selection
   bool _hasUnsavedChanges = false;
@@ -36,8 +37,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     'Sunday Service',
     'Bible Study',
     'Prayer Meeting',
-    'Youth Meeting',
-    'Special Event',
+    'Songs Practice',
   ];
 
   @override
@@ -280,83 +280,109 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             ],
           ),
           const SizedBox(height: 16),
-          Row(
-            children: [
-              // Event Type
-              Expanded(
-                child: GestureDetector(
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                // Absentees Filter Chip
+                FilterChip(
+                  label: Text(
+                    'Show Absentees',
+                    style: TextStyle(
+                      color: _showAbsenteesOnly ? Colors.white : Colors.black87,
+                      fontSize: 12,
+                    ),
+                  ),
+                  selected: _showAbsenteesOnly,
+                  onSelected: (bool selected) {
+                    setState(() {
+                      _showAbsenteesOnly = selected;
+                    });
+                  },
+                  backgroundColor: Colors.grey[100],
+                  selectedColor: Colors.red[400],
+                  checkmarkColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  visualDensity: VisualDensity.compact,
+                ),
+                const SizedBox(width: 8),
+
+                // Event Type Picker (Using GestureDetector as before or FilterChip style)
+                GestureDetector(
                   onTap: () => _showEventTypePicker(),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,
-                      vertical: 10,
+                      vertical: 8,
                     ),
                     decoration: BoxDecoration(
                       color: Colors.grey[50],
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.grey[200]!),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.grey[300]!),
                     ),
                     child: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
                           _getEventIcon(_selectedEventType),
                           color: Theme.of(context).primaryColor,
-                          size: 18,
+                          size: 14,
                         ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            _selectedEventType,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            overflow: TextOverflow.ellipsis,
+                        const SizedBox(width: 6),
+                        Text(
+                          _selectedEventType,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
                           ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.arrow_drop_down,
+                          size: 16,
+                          color: Colors.grey[600],
                         ),
                       ],
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              // Date
-              Expanded(
-                child: GestureDetector(
+                const SizedBox(width: 8),
+
+                // Date Picker
+                GestureDetector(
                   onTap: _selectDate,
                   child: Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,
-                      vertical: 10,
+                      vertical: 8,
                     ),
                     decoration: BoxDecoration(
                       color: Colors.grey[50],
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.grey[200]!),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.grey[300]!),
                     ),
                     child: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
                           Icons.calendar_today_rounded,
                           color: Theme.of(context).primaryColor,
-                          size: 16,
+                          size: 14,
                         ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            DateFormat('MMM d, yyyy').format(_selectedDate),
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                            ),
+                        const SizedBox(width: 6),
+                        Text(
+                          DateFormat('MMM d, yyyy').format(_selectedDate),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ],
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
@@ -506,9 +532,27 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         : 0.0;
 
     // Filter members based on search query
+    // Filter members based on search query
     List<Member> filteredMembers = members.where((member) {
-      if (_searchQuery.isEmpty) return true;
-      return member.name.toLowerCase().contains(_searchQuery.toLowerCase());
+      // 1. Filter out Alumni/Graduate
+      if (member.year.toLowerCase().contains('alumni') ||
+          member.year.toLowerCase().contains('graduate')) {
+        return false;
+      }
+
+      // 2. Filter by Search Query
+      if (_searchQuery.isNotEmpty &&
+          !member.name.toLowerCase().contains(_searchQuery.toLowerCase())) {
+        return false;
+      }
+
+      // 3. Filter by Absentees Only
+      if (_showAbsenteesOnly) {
+        final isAbsent = !(_attendanceRecords[member.id]?.isPresent ?? false);
+        if (!isAbsent) return false;
+      }
+
+      return true;
     }).toList();
 
     return Column(
@@ -860,7 +904,26 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),
-                      if (member.ministryRole.isNotEmpty) ...[
+                      if (_showAbsenteesOnly) ...[
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.phone,
+                              size: 10,
+                              color: Colors.grey[600],
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              member.phone,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ] else if (member.ministryRole.isNotEmpty) ...[
                         const SizedBox(height: 2),
                         Container(
                           padding: const EdgeInsets.symmetric(
@@ -889,50 +952,77 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             ),
           ),
 
-          // Arrival Time
-          Expanded(
-            flex: 2,
-            child: Text(
-              arrivalTime != null
-                  ? DateFormat('h:mm a').format(arrivalTime)
-                  : '--:--',
-              style: TextStyle(
-                fontSize: 12,
-                color: arrivalTime != null
-                    ? Colors.green[700]
-                    : Colors.grey[400],
-                fontWeight: arrivalTime != null
-                    ? FontWeight.bold
-                    : FontWeight.normal,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-
-          // Checkbox for Attendance
-          Expanded(
-            flex: 1,
-            child: Center(
-              child: Consumer<AuthService>(
-                builder: (context, authService, child) {
-                  return Transform.scale(
-                    scale: 1.1,
-                    child: Checkbox(
-                      value: isPresent,
-                      onChanged: authService.canEdit
-                          ? (bool? value) =>
-                                _toggleAttendance(member.id, value ?? false)
-                          : null,
-                      activeColor: Colors.green,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(4),
+          if (_showAbsenteesOnly) ...[
+            // Absentee Details: Hostel
+            Expanded(
+              flex: 2,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Icon(Icons.home, size: 12, color: Colors.grey[400]),
+                  const SizedBox(width: 4),
+                  Flexible(
+                    child: Text(
+                      member.hostel.isNotEmpty ? member.hostel : 'No Hostel',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.w500,
                       ),
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.right,
                     ),
-                  );
-                },
+                  ),
+                  const SizedBox(width: 16),
+                ],
               ),
             ),
-          ),
+          ] else ...[
+            // Normal View: Arrival Time & Checkbox
+            Expanded(
+              flex: 2,
+              child: Text(
+                arrivalTime != null
+                    ? DateFormat('h:mm a').format(arrivalTime)
+                    : '--:--',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: arrivalTime != null
+                      ? Colors.green[700]
+                      : Colors.grey[400],
+                  fontWeight: arrivalTime != null
+                      ? FontWeight.bold
+                      : FontWeight.normal,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+
+            // Checkbox for Attendance
+            Expanded(
+              flex: 1,
+              child: Center(
+                child: Consumer<AuthService>(
+                  builder: (context, authService, child) {
+                    return Transform.scale(
+                      scale: 1.1,
+                      child: Checkbox(
+                        value: isPresent,
+                        onChanged: authService.canEdit
+                            ? (bool? value) =>
+                                  _toggleAttendance(member.id, value ?? false)
+                            : null,
+                        activeColor: Colors.green,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -978,7 +1068,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         return Icons.book_rounded;
       case 'Prayer Meeting':
         return Icons.favorite_rounded;
-      case 'Youth Meeting':
+      case 'Songs Practice':
         return Icons.groups_rounded;
       case 'Special Event':
         return Icons.event_rounded;

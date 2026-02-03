@@ -28,8 +28,8 @@ class _AttendanceSessionsScreenState extends State<AttendanceSessionsScreen> {
     'Sunday Service',
     'Bible Study',
     'Prayer Meeting',
-    'Youth Meeting',
-    'Special Event',
+    'Songs Practice',
+    
   ];
 
   @override
@@ -619,7 +619,7 @@ class _AttendanceSessionsScreenState extends State<AttendanceSessionsScreen> {
         return Icons.book_rounded;
       case 'Prayer Meeting':
         return Icons.favorite_rounded;
-      case 'Youth Meeting':
+      case 'Songs Practice':
         return Icons.groups_rounded;
       default:
         return Icons.event_rounded;
@@ -634,7 +634,7 @@ class _AttendanceSessionsScreenState extends State<AttendanceSessionsScreen> {
         return Colors.green;
       case 'Prayer Meeting':
         return Colors.purple;
-      case 'Youth Meeting':
+      case 'Songs Practice':
         return Colors.orange;
       default:
         return Colors.blueGrey;

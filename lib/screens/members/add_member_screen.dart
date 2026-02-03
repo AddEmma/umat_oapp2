@@ -23,6 +23,9 @@ class _AddMemberScreenState extends State<AddMemberScreen>
   final _yearController = TextEditingController();
   final _departmentController = TextEditingController();
   final _ministryRoleController = TextEditingController();
+  final _localCongregationController = TextEditingController();
+  final _locationController = TextEditingController();
+  final _hostelController = TextEditingController();
 
   bool _isBaptized = false;
   bool _isLoading = false;
@@ -44,13 +47,18 @@ class _AddMemberScreenState extends State<AddMemberScreen>
   ];
 
   final List<String> _departments = [
-    'Computer Science & Engineering',
-    'Mechanical Engineering',
-    'Data Analytics',
-    'Geomatics Engineering',
-    'Geological Engineering',
-    'Environmental & Safety Engineering',
-    'Mathematics',
+    'BSc Computer Science & Engineering',
+    'BSc Data Science and Analytics Engineering',
+    'BSc Electrical & Electronic Engineering',
+    'BSc Environmental & Safety Engineering',
+    'BSc Transport Planning & Management',
+    'BSc Mechanical Engineering',
+    'BSc Civil Engineering',
+    'BSc Geomatics Engineering',
+    'BSc Geological Engineering',
+    'BSc Mathematics',
+    'Diploma in Plant & Maintenance',
+    'Diploma in Electrical & Electronic Engineering',
     'Other',
   ];
 
@@ -77,6 +85,9 @@ class _AddMemberScreenState extends State<AddMemberScreen>
     _yearController.dispose();
     _departmentController.dispose();
     _ministryRoleController.dispose();
+    _localCongregationController.dispose();
+    _locationController.dispose();
+    _hostelController.dispose();
     super.dispose();
   }
 
@@ -288,6 +299,26 @@ class _AddMemberScreenState extends State<AddMemberScreen>
                             : null,
                       ),
 
+                      const SizedBox(height: 20),
+                      _buildSectionHeader(
+                        'Residence & Origin',
+                        Icons.home_work,
+                      ),
+                      const SizedBox(height: 16),
+                      _buildTextField(
+                        controller: _locationController,
+                        label: 'Location (Where from)',
+                        hint: 'e.g., Accra',
+                        icon: Icons.location_on,
+                      ),
+                      const SizedBox(height: 20),
+                      _buildTextField(
+                        controller: _hostelController,
+                        label: 'Hostel',
+                        hint: 'e.g., KT Hall',
+                        icon: Icons.apartment,
+                      ),
+
                       SizedBox(height: 30),
 
                       // Academic Information Section
@@ -336,6 +367,13 @@ class _AddMemberScreenState extends State<AddMemberScreen>
                         label: 'Ministry Role (Optional)',
                         hint: 'e.g., Choir Member, Usher, etc.',
                         icon: Icons.work_outline,
+                      ),
+                      const SizedBox(height: 20),
+                      _buildTextField(
+                        controller: _localCongregationController,
+                        label: 'Local Congregation',
+                        hint: 'e.g., Central Assembly',
+                        icon: Icons.church,
                       ),
                       SizedBox(height: 20),
                       _buildBaptizedToggle(),
@@ -688,6 +726,9 @@ class _AddMemberScreenState extends State<AddMemberScreen>
         department: _departmentController.text,
         isBaptized: _isBaptized,
         ministryRole: _ministryRoleController.text.trim(),
+        localCongregation: _localCongregationController.text.trim(),
+        location: _locationController.text.trim(),
+        hostel: _hostelController.text.trim(),
         dateAdded: DateTime.now(),
       );
 
