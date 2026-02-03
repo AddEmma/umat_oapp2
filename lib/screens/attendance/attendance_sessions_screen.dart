@@ -3,12 +3,14 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'dart:io';
 import '../../services/database_service.dart';
 import '../../services/auth_service.dart';
 import '../../models/member.dart';
 import '../../models/attendance_record.dart';
 import 'attendance_screen.dart';
+import '../members/member_detail_screen.dart';
 
 class AttendanceSessionsScreen extends StatefulWidget {
   const AttendanceSessionsScreen({super.key});
@@ -29,7 +31,6 @@ class _AttendanceSessionsScreenState extends State<AttendanceSessionsScreen> {
     'Bible Study',
     'Prayer Meeting',
     'Songs Practice',
-    
   ];
 
   @override
@@ -336,7 +337,7 @@ class _AttendanceSessionsScreenState extends State<AttendanceSessionsScreen> {
                         ],
                       ),
                     ),
-                    _buildExportButton(session),
+                    // _buildExportButton(session),
                   ],
                 ),
               ),
@@ -408,24 +409,24 @@ class _AttendanceSessionsScreenState extends State<AttendanceSessionsScreen> {
     );
   }
 
-  Widget _buildExportButton(Map<String, dynamic> session) {
-    return Consumer<AuthService>(
-      builder: (context, authService, _) {
-        if (!authService.isAdmin && !authService.isEditor)
-          return const SizedBox.shrink();
+  // Widget _buildExportButton(Map<String, dynamic> session) {
+  //   return Consumer<AuthService>(
+  //     builder: (context, authService, _) {
+  //       if (!authService.isAdmin && !authService.isEditor)
+  //         return const SizedBox.shrink();
 
-        return IconButton(
-          icon: const Icon(
-            Icons.ios_share_rounded,
-            color: Colors.blueAccent,
-            size: 22,
-          ),
-          onPressed: _isExporting ? null : () => _exportSession(session),
-          tooltip: 'Export CSV',
-        );
-      },
-    );
-  }
+  //       return IconButton(
+  //         icon: const Icon(
+  //           Icons.ios_share_rounded,
+  //           color: Colors.blueAccent,
+  //           size: 22,
+  //         ),
+  //         onPressed: _isExporting ? null : () => _exportSession(session),
+  //         tooltip: 'Export CSV',
+  //       );
+  //     },
+  //   );
+  // }
 
   Future<void> _exportSession(Map<String, dynamic> session) async {
     setState(() => _isExporting = true);
@@ -660,7 +661,7 @@ class _AttendanceSessionsScreenState extends State<AttendanceSessionsScreen> {
   }
 }
 
-class AttendanceSessionDetailScreen extends StatelessWidget {
+class AttendanceSessionDetailScreen extends StatefulWidget {
   final DateTime date;
   final String eventType;
 
@@ -671,219 +672,488 @@ class AttendanceSessionDetailScreen extends StatelessWidget {
   });
 
   @override
+  State<AttendanceSessionDetailScreen> createState() =>
+      _AttendanceSessionDetailScreenState();
+}
+
+class _AttendanceSessionDetailScreenState
+    extends State<AttendanceSessionDetailScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  bool _isExporting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final databaseService = Provider.of<DatabaseService>(context);
 
-    return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        title: const Text('Session Details'),
-        backgroundColor: Theme.of(context).primaryColor,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.edit_rounded),
-            onPressed: () {
+    return FutureBuilder<Map<String, AttendanceRecord>>(
+      future: databaseService.getAttendanceForDate(
+        widget.date,
+        widget.eventType,
+      ),
+      builder: (context, recordsSnapshot) {
+        return StreamBuilder<List<Member>>(
+          stream: databaseService.getMembers(),
+          builder: (context, membersSnapshot) {
+            // Prepare Data
+            final isLoading =
+                recordsSnapshot.connectionState == ConnectionState.waiting ||
+                membersSnapshot.connectionState == ConnectionState.waiting;
+
+            if (isLoading) {
+              return Scaffold(
+                appBar: AppBar(
+                  title: const Text('Session Details'),
+                  backgroundColor: Theme.of(context).primaryColor,
+                ),
+                body: const Center(child: CircularProgressIndicator()),
+              );
+            }
+
+            final records = recordsSnapshot.data ?? {};
+            final allMembers = membersSnapshot.data ?? [];
+
+            // FILTER: Exclude Alumni/Graduate
+            final activeMembers = allMembers.where((m) {
+              final year = m.year.toLowerCase();
+              return !year.contains('alumni') && !year.contains('graduate');
+            }).toList();
+
+            // SPLIT: Present vs Absent
+            final presentMembers = <Member>[];
+            final absentMembers = <Member>[];
+
+            for (var member in activeMembers) {
+              if (records.containsKey(member.id) &&
+                  records[member.id]!.isPresent) {
+                presentMembers.add(member);
+              } else {
+                absentMembers.add(member);
+              }
+            }
+
+            return Scaffold(
+              backgroundColor: Colors.grey[50],
+              appBar: AppBar(
+                title: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Session Details',
+                      style: TextStyle(fontSize: 18),
+                    ),
+                    Text(
+                      DateFormat('MMM d, yyyy').format(widget.date),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.normal,
+                      ),
+                    ),
+                  ],
+                ),
+                backgroundColor: Theme.of(context).primaryColor,
+                elevation: 0,
+                bottom: TabBar(
+                  controller: _tabController,
+                  indicatorColor: Colors.white,
+                  indicatorWeight: 3,
+                  labelColor: Colors.white,
+                  unselectedLabelColor: Colors.white70,
+                  labelStyle: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize:
+                        16, // Increasing size slightly for better visibility
+                  ),
+                  tabs: [
+                    Tab(
+                      text: 'Present (${presentMembers.length})',
+                      icon: const Icon(
+                        Icons.check_circle_outline,
+                        size: 20,
+                        color: Colors.white,
+                      ),
+                    ),
+                    Tab(
+                      text: 'Absent (${absentMembers.length})',
+                      icon: const Icon(
+                        Icons.highlight_off_rounded,
+                        size: 20,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+                actions: [
+                  // Export Button
+                  IconButton(
+                    icon: _isExporting
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Icon(Icons.ios_share_rounded),
+                    tooltip: 'Export Current List',
+                    onPressed: _isExporting
+                        ? null
+                        : () {
+                            if (_tabController.index == 0) {
+                              _exportList(presentMembers, records, 'Present');
+                            } else {
+                              _exportList(absentMembers, records, 'Absent');
+                            }
+                          },
+                  ),
+                  // Edit Button
+                  IconButton(
+                    icon: const Icon(Icons.edit_rounded),
+                    tooltip: 'Edit Attendance',
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => AttendanceScreen(
+                            initialDate: widget.date,
+                            initialEventType: widget.eventType,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+              body: TabBarView(
+                controller: _tabController,
+                children: [
+                  // Present Tab
+                  _buildMemberListView(presentMembers, records, true),
+                  // Absent Tab
+                  _buildMemberListView(absentMembers, records, false),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildMemberListView(
+    List<Member> members,
+    Map<String, AttendanceRecord> records,
+    bool isPresentTab,
+  ) {
+    if (members.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              isPresentTab
+                  ? Icons.person_off_rounded
+                  : Icons.check_circle_outline,
+              size: 48,
+              color: Colors.grey[300],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              isPresentTab ? 'No members present' : 'No members absent',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: Colors.grey[500],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: members.length,
+      itemBuilder: (context, index) {
+        final member = members[index];
+        final record = records[member.id];
+        final arrivalTime = record?.arrivalTime;
+
+        return Card(
+          elevation: 2,
+          shadowColor: Colors.black.withOpacity(0.05),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          margin: const EdgeInsets.only(bottom: 8),
+          child: InkWell(
+            onTap: () {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => AttendanceScreen(
-                    initialDate: date,
-                    initialEventType: eventType,
-                  ),
+                  builder: (context) => MemberDetailScreen(member: member),
                 ),
               );
             },
-            tooltip: 'Edit Attendance',
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          _buildDetailHeader(context),
-          Expanded(
-            child: FutureBuilder<Map<String, AttendanceRecord>>(
-              future: databaseService.getAttendanceForDate(date, eventType),
-              builder: (context, recordsSnapshot) {
-                if (recordsSnapshot.connectionState ==
-                    ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                if (!recordsSnapshot.hasData || recordsSnapshot.data!.isEmpty) {
-                  return const Center(
-                    child: Text('No records found for this session.'),
-                  );
-                }
-
-                final records = recordsSnapshot.data!;
-
-                return StreamBuilder<List<Member>>(
-                  stream: databaseService.getMembers(),
-                  builder: (context, membersSnapshot) {
-                    if (membersSnapshot.connectionState ==
-                        ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-
-                    if (!membersSnapshot.hasData ||
-                        membersSnapshot.data!.isEmpty) {
-                      return const Center(child: Text('No members found.'));
-                    }
-
-                    final members = membersSnapshot.data!;
-
-                    return ListView.builder(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  // Avatar
+                  Hero(
+                    tag: 'member_${member.id}',
+                    child: Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: member.isBaptized
+                            ? Colors.green[100]
+                            : Colors.orange[100],
+                        shape: BoxShape.circle,
+                        image: member.photoUrl != null
+                            ? DecorationImage(
+                                image: NetworkImage(member.photoUrl!),
+                                fit: BoxFit.cover,
+                              )
+                            : null,
                       ),
-                      itemCount: members.length,
-                      itemBuilder: (context, index) {
-                        final member = members[index];
-                        final record = records[member.id];
-                        final isPresent = record?.isPresent ?? false;
-
-                        return Card(
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          margin: const EdgeInsets.only(bottom: 8),
-                          child: ListTile(
-                            leading: Stack(
-                              children: [
-                                CircleAvatar(
-                                  radius: 24,
-                                  backgroundColor: isPresent
-                                      ? Colors.green[100]
-                                      : Colors.red[100],
-                                  backgroundImage:
-                                      (member.photoUrl != null &&
-                                          member.photoUrl!.isNotEmpty)
-                                      ? NetworkImage(member.photoUrl!)
-                                      : null,
-                                  child:
-                                      (member.photoUrl == null ||
-                                          member.photoUrl!.isEmpty)
-                                      ? Text(
-                                          member.name.isNotEmpty
-                                              ? member.name[0].toUpperCase()
-                                              : '?',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            color: isPresent
-                                                ? Colors.green[700]
-                                                : Colors.red[700],
-                                          ),
-                                        )
-                                      : null,
+                      child: member.photoUrl == null
+                          ? Center(
+                              child: Text(
+                                member.name.isNotEmpty
+                                    ? member.name[0].toUpperCase()
+                                    : '?',
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: member.isBaptized
+                                      ? Colors.green[700]
+                                      : Colors.orange[700],
                                 ),
-                                Positioned(
-                                  bottom: 0,
-                                  right: 0,
-                                  child: Container(
-                                    padding: const EdgeInsets.all(2),
-                                    decoration: BoxDecoration(
-                                      color: isPresent
-                                          ? Colors.green
-                                          : Colors.red,
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
-                                        color: Colors.white,
-                                        width: 2,
-                                      ),
-                                    ),
-                                    child: Icon(
-                                      isPresent ? Icons.check : Icons.close,
-                                      size: 10,
-                                      color: Colors.white,
-                                    ),
+                              ),
+                            )
+                          : null,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+
+                  // Info
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          member.name,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        if (member.ministryRole.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Text(
+                              member.ministryRole,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Theme.of(context).primaryColor,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        if (!isPresentTab && member.phone.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.phone,
+                                  size: 12,
+                                  color: Colors.grey[600],
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  member.phone,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[600],
                                   ),
                                 ),
                               ],
                             ),
-                            title: Text(
-                              member.name,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            subtitle: Text(member.ministryRole),
-                            trailing: isPresent && record?.arrivalTime != null
-                                ? Text(
-                                    DateFormat(
-                                      'HH:mm',
-                                    ).format(record!.arrivalTime!),
-                                    style: TextStyle(
-                                      color: Colors.grey[600],
-                                      fontSize: 12,
-                                    ),
-                                  )
-                                : Text(
-                                    isPresent ? 'Present' : 'Absent',
-                                    style: TextStyle(
-                                      color: isPresent
-                                          ? Colors.green[700]
-                                          : Colors.red[700],
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 12,
-                                    ),
-                                  ),
                           ),
-                        );
-                      },
-                    );
-                  },
-                );
-              },
+                      ],
+                    ),
+                  ),
+
+                  // Trailing Info (Time or Status)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      if (isPresentTab && arrivalTime != null) ...[
+                        Text(
+                          DateFormat('h:mm a').format(arrivalTime),
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.green[700],
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Arrived',
+                          style: TextStyle(fontSize: 10, color: Colors.grey),
+                        ),
+                      ] else if (!isPresentTab && member.hostel.isNotEmpty) ...[
+                        Text(
+                          member.hostel,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.red[300],
+                            fontWeight: FontWeight.w500,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(width: 8),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    color: Colors.grey[300],
+                    size: 20,
+                  ),
+                ],
+              ),
             ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
-  Widget _buildDetailHeader(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Theme.of(context).primaryColor,
-        borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(32),
-          bottomRight: Radius.circular(32),
-        ),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  eventType,
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                Text(
-                  DateFormat('EEEE, MMM d, yyyy').format(date),
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.white.withOpacity(0.9),
-                  ),
-                ),
-              ],
+  Future<void> _exportList(
+    List<Member> members,
+    Map<String, AttendanceRecord> records,
+    String statusLabel,
+  ) async {
+    setState(() => _isExporting = true);
+
+    try {
+      String csvContent = _generateListCSV(members, records, statusLabel);
+
+      Directory directory;
+      if (Platform.isAndroid) {
+        directory =
+            await getExternalStorageDirectory() ??
+            await getApplicationDocumentsDirectory();
+      } else {
+        directory = await getApplicationDocumentsDirectory();
+      }
+
+      String formattedDate = DateFormat('yyyy-MM-dd').format(widget.date);
+      String sanitizedType = widget.eventType.replaceAll(' ', '_');
+      String fileName = '${sanitizedType}_${statusLabel}_$formattedDate.csv';
+      String filePath = '${directory.path}/$fileName';
+
+      File file = File(filePath);
+      await file.writeAsString(csvContent);
+
+      if (mounted) {
+        _showExportSuccessDialog(file, statusLabel);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Export failed: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isExporting = false);
+      }
+    }
+  }
+
+  String _generateListCSV(
+    List<Member> members,
+    Map<String, AttendanceRecord> records,
+    String statusLabel,
+  ) {
+    StringBuffer csv = StringBuffer();
+
+    csv.writeln('Attendance List: $statusLabel');
+    csv.writeln('Event,${widget.eventType}');
+    csv.writeln('Date,${DateFormat('yyyy-MM-dd').format(widget.date)}');
+    csv.writeln('');
+
+    csv.writeln('Name,Phone,Hostel,Ministry Role,Baptized,Time (if present)');
+
+    for (var member in members) {
+      final record = records[member.id];
+      final time = record?.arrivalTime != null
+          ? DateFormat('h:mm a').format(record!.arrivalTime!)
+          : '';
+
+      csv.writeln(
+        '${_escapeCSV(member.name)},'
+        '${_escapeCSV(member.phone)},'
+        '${_escapeCSV(member.hostel)},'
+        '${_escapeCSV(member.ministryRole)},'
+        '${member.isBaptized ? "Yes" : "No"},'
+        '$time',
+      );
+    }
+    return csv.toString();
+  }
+
+  String _escapeCSV(String field) {
+    if (field.contains(',') || field.contains('"') || field.contains('\n')) {
+      return '"${field.replaceAll('"', '""')}"';
+    }
+    return field;
+  }
+
+  void _showExportSuccessDialog(File file, String label) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('$label List Exported'),
+          content: const Text('File saved successfully.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Close'),
             ),
-          ),
-          const Icon(
-            Icons.event_available_rounded,
-            color: Colors.white,
-            size: 48,
-          ),
-        ],
-      ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.of(context).pop();
+                await Share.shareXFiles([
+                  XFile(file.path),
+                ], text: '$label Members - ${widget.eventType}');
+              },
+              child: const Text('Share'),
+            ),
+          ],
+        );
+      },
     );
   }
 }

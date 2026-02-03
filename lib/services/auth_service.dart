@@ -9,8 +9,10 @@ class AuthService extends ChangeNotifier {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final DatabaseService _databaseService = DatabaseService();
 
-  User? get user => _auth.currentUser;
-  bool get isAuthenticated => user != null;
+  // Cache user locally to avoid race conditions with standard getter
+  User? _user;
+  User? get user => _user;
+  bool get isAuthenticated => _user != null;
 
   // Loading states
   bool _isLoading = false;
@@ -29,8 +31,12 @@ class AuthService extends ChangeNotifier {
   bool get hasLoggedInThisSession => _hasLoggedInThisSession;
 
   AuthService() {
+    // Initialize immediately
+    _user = _auth.currentUser;
+
     // Listen to auth state changes
     _auth.authStateChanges().listen((User? user) {
+      _user = user;
       _isInitialized = true;
       if (user != null) {
         _fetchUserRole(user.uid);
@@ -43,6 +49,7 @@ class AuthService extends ChangeNotifier {
 
     // Also listen to user changes for more granular updates
     _auth.userChanges().listen((User? user) {
+      _user = user;
       _isInitialized = true;
       if (user != null) {
         _fetchUserRole(user.uid);
@@ -121,7 +128,9 @@ class AuthService extends ChangeNotifier {
     try {
       _setLoading(true);
       _hasLoggedInThisSession = false;
+      _user = null; // Explicitly clear user
       await _auth.signOut();
+      notifyListeners(); // Ensure UI knows immediately
     } catch (e) {
       _setError('Error signing out. Please try again.');
       print('Sign out error: $e');
@@ -134,7 +143,9 @@ class AuthService extends ChangeNotifier {
   Future<void> forceSignOut() async {
     try {
       _hasLoggedInThisSession = false;
+      _user = null;
       await _auth.signOut();
+      notifyListeners();
     } catch (e) {
       print('Force sign out error: $e');
     }
